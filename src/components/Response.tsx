@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { responseVariants } from '../lib/motion';
+import { markdownComponents } from '../lib/markdown';
 
 interface ResponseProps {
   content: string;
@@ -32,38 +33,13 @@ export const Response: React.FC<ResponseProps> = ({ content, isStreaming }) => {
       <div className="peek-response-content">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          components={{
-            // Custom renderers for premium feel
-            code: ({ children, className, ...props }) => {
-              const isInline = !className;
-              if (isInline) {
-                return <code className="peek-inline-code" {...props}>{children}</code>;
-              }
-              return (
-                <pre className="peek-code-block">
-                  <code className={className} {...props}>
-                    {children}
-                  </code>
-                </pre>
-              );
-            },
-            a: ({ children, href, ...props }) => (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="peek-link"
-                {...props}
-              >
-                {children}
-              </a>
-            ),
-          }}
+          components={markdownComponents}
         >
           {content}
         </ReactMarkdown>
-        {isStreaming && <span className="peek-cursor" />}
+        {isStreaming && <span className="peek-cursor" aria-hidden="true" />}
       </div>
     </motion.div>
   );
 };
+

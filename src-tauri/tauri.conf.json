@@ -43,9 +43,9 @@
   },
   "plugins": {
     "sql": {
-      "preload": {
-        "db": "sqlite:peekaboo.db"
-      }
+      "preload": [
+        "sqlite:peekaboo.db"
+      ]
     }
   }
 }

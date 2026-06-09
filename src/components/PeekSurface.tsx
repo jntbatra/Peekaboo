@@ -2,16 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 
 import { Input } from './Input';
 import { Response } from './Response';
 import { History } from './History';
+import { Attachments } from './Attachments';
 import { usePeekStore } from '../store/peek';
 import { useSettingsStore } from '../store/settings';
 import { useHistoryStore, type Session } from '../store/history';
 import { useStream } from '../hooks/useStream';
 import { useShortcuts } from '../hooks/useShortcuts';
+import { useAttachments } from '../hooks/useAttachments';
 import { OllamaProvider } from '../providers/ollama';
 import { peekVariants } from '../lib/motion';
 import {
@@ -48,6 +49,7 @@ export const PeekSurface: React.FC = () => {
 
   const { activeModel, setActiveModel, ollamaBaseUrl } = useSettingsStore();
   const { setSessions } = useHistoryStore();
+  const { attachments, remove: removeAttachment, clear: clearAttachments } = useAttachments();
   const { run: runStream, abort: abortStream } = useStream();
 
   const provider = useMemo(
@@ -81,28 +83,9 @@ export const PeekSurface: React.FC = () => {
     loadHistory();
   }, [setSessions]);
 
-  // ── Register global shortcut ──
-  useEffect(() => {
-    const shortcut = useSettingsStore.getState().hotkey;
 
-    const setup = async () => {
-      try {
-        await register(shortcut, (event) => {
-          if (event.state === 'Pressed') {
-            invoke('toggle_peek');
-          }
-        });
-      } catch (err) {
-        console.warn('Failed to register global shortcut:', err);
-      }
-    };
-
-    setup();
-
-    return () => {
-      unregister(shortcut).catch(() => {});
-    };
-  }, []);
+  // Global shortcut registration is handled natively in Rust (lib.rs)
+  // to avoid frontend loading lag or permission scope overhead.
 
   // ── Listen for visibility events from Rust ──
   useEffect(() => {
@@ -255,7 +238,8 @@ export const PeekSurface: React.FC = () => {
   const handleClear = useCallback(() => {
     abortStream();
     clear();
-  }, [abortStream, clear]);
+    clearAttachments();
+  }, [abortStream, clear, clearAttachments]);
 
   // ── Previous query ──
   const handlePreviousQuery = useCallback(async () => {
@@ -336,6 +320,9 @@ export const PeekSurface: React.FC = () => {
           <div className="peek-main">
             {/* Input */}
             <Input onSubmit={handleSubmit} />
+
+            {/* Attachment chips */}
+            <Attachments attachments={attachments} onRemove={removeAttachment} />
 
             {/* Status bar */}
             <div className="peek-statusbar">

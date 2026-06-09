@@ -152,6 +152,66 @@ html, body, #root {
   font-weight: 500;
 }
 
+/* ─── Attachment Chips ──────────────────────────────────────────────── */
+
+.peek-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 10px;
+}
+
+.peek-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 6px;
+  background: rgba(129, 140, 248, 0.1);
+  border: 1px solid rgba(129, 140, 248, 0.2);
+  color: var(--peek-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 220px;
+  user-select: none;
+}
+
+.peek-chip-icon {
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.peek-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peek-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--peek-text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: color 0.1s ease, background 0.1s ease;
+  padding: 0;
+}
+
+.peek-chip-remove:hover {
+  color: var(--peek-text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* ─── Status Bar ────────────────────────────────────────────────────── */
 
 .peek-statusbar {
