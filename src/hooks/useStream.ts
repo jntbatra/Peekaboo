@@ -55,6 +55,14 @@ export function useStream() {
         setIsStreaming(false);
         onComplete?.(full);
       } catch (err) {
+        // Clean up any running background tasks since the stream stopped
+        const store = usePeekStore.getState();
+        store.backgroundTasks.forEach((t) => {
+          if (t.status === 'running') {
+            store.updateBackgroundTask(t.id, { status: 'error', result: 'aborted' });
+          }
+        });
+
         if ((err as Error).name === 'AbortError') {
           // Deliberate abort — not an error
           // Final flush of whatever we have

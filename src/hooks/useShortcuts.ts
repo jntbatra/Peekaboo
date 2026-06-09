@@ -48,6 +48,15 @@ export function useShortcuts(handlers: ShortcutHandlers) {
         return;
       }
 
+      // Cmd/Ctrl+, → Open settings
+      if (isMod && e.key === ',') {
+        e.preventDefault();
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+          invoke('open_settings');
+        });
+        return;
+      }
+
       // Up arrow (empty input) → Previous query
       if (e.key === 'ArrowUp') {
         const input = usePeekStore.getState().input;

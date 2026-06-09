@@ -6,6 +6,7 @@ import { listen } from '@tauri-apps/api/event';
 import { Input } from './Input';
 import { Response } from './Response';
 import { History } from './History';
+import { Models } from './Models';
 import { Attachments } from './Attachments';
 import { usePeekStore } from '../store/peek';
 import { useSettingsStore } from '../store/settings';
@@ -313,57 +314,62 @@ export const PeekSurface: React.FC = () => {
           animate="visible"
           exit="exit"
         >
-          {/* History Panel */}
-          <History onSelectSession={handleSelectSession} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gridTemplateRows: '1fr' }}>
+            {/* Main content */}
+            <div className="peek-main" style={{ gridArea: '1 / 1' }}>
+              {/* Input */}
+              <Input
+                onSubmit={handleSubmit}
+                onAbort={abortStream}
+                onAttachImage={(base64, mediaType) => {
+                  // Determine a nice label based on type
+                  const isPng = mediaType.includes('png');
+                  addAttachment({
+                    type: 'clipboard',
+                    label: `Pasted Image${isPng ? ' (PNG)' : ''}`,
+                    content: base64,
+                    mediaType,
+                  });
+                }}
+              />
 
-          {/* Main content */}
-          <div className="peek-main">
-            {/* Input */}
-            <Input
-              onSubmit={handleSubmit}
-              onAbort={abortStream}
-              onAttachImage={(base64, mediaType) => {
-                // Determine a nice label based on type
-                const isPng = mediaType.includes('png');
-                addAttachment({
-                  type: 'clipboard',
-                  label: `Pasted Image${isPng ? ' (PNG)' : ''}`,
-                  content: base64,
-                  mediaType,
-                });
-              }}
-            />
+              {/* Attachment chips */}
+              <Attachments attachments={attachments} onRemove={removeAttachment} />
 
-            {/* Attachment chips */}
-            <Attachments attachments={attachments} onRemove={removeAttachment} />
-
-            {/* Status bar */}
-            <div className="peek-statusbar">
-              <div className="peek-status-left">
-                {ollamaStatus === 'disconnected' && (
-                  <span className="peek-status-error">
-                    Ollama not detected — is it running?
-                  </span>
-                )}
-                {ollamaStatus === 'connected' && activeModel && (
-                  <span className="peek-status-model">{activeModel}</span>
-                )}
+              {/* Status bar */}
+              <div className="peek-statusbar">
+                <div className="peek-status-left">
+                  {ollamaStatus === 'disconnected' && (
+                    <span className="peek-status-error">
+                      Ollama not detected — is it running?
+                    </span>
+                  )}
+                  {ollamaStatus === 'connected' && activeModel && (
+                    <span className="peek-status-model">{activeModel}</span>
+                  )}
+                </div>
+                <div className="peek-status-right">
+                  {backgroundTasks.filter((t) => t.status === 'running').length >
+                    0 && (
+                    <span className="peek-bg-indicator">
+                      <span className="peek-bg-dot" />
+                      Background task running
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="peek-status-right">
-                {backgroundTasks.filter((t) => t.status === 'running').length >
-                  0 && (
-                  <span className="peek-bg-indicator">
-                    <span className="peek-bg-dot" />
-                    Background task running
-                  </span>
-                )}
-              </div>
+
+              {/* Response */}
+              {hasResponse && (
+                <Response content={displayContent} isStreaming={isStreaming} />
+              )}
             </div>
-
-            {/* Response */}
-            {hasResponse && (
-              <Response content={displayContent} isStreaming={isStreaming} />
-            )}
+            
+            {/* History Panel */}
+            <History onSelectSession={handleSelectSession} />
+            
+            {/* Models Panel */}
+            <Models />
           </div>
         </motion.div>
       )}

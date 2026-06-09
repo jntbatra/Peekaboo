@@ -1,33 +1,27 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useHistoryStore, type Session } from '../store/history';
+import { useSettingsStore } from '../store/settings';
 import { historyVariants } from '../lib/motion';
+import { OllamaProvider } from '../providers/ollama';
 
-interface HistoryProps {
-  onSelectSession: (session: Session) => void;
-}
-
-function formatRelativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(timestamp).toLocaleDateString();
-}
-
-export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
-  const { sessions, isOpen, setOpen } = useHistoryStore();
+export const Models: React.FC = () => {
+  const { activeModel, setActiveModel, isModelsOpen, setModelsOpen, ollamaBaseUrl } = useSettingsStore();
+  const [availableModels, setAvailableModels] = React.useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // Fetch models when opened
+  React.useEffect(() => {
+    if (isModelsOpen) {
+      const provider = new OllamaProvider(ollamaBaseUrl);
+      provider.models().then(setAvailableModels);
+    }
+  }, [isModelsOpen, ollamaBaseUrl]);
+
   // Reset selection when opened
   React.useEffect(() => {
-    if (isOpen) setSelectedIndex(0);
-  }, [isOpen]);
+    if (isModelsOpen) setSelectedIndex(0);
+  }, [isModelsOpen]);
 
   // Scroll active item into view
   React.useEffect(() => {
@@ -39,35 +33,36 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
   }, [selectedIndex]);
 
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isModelsOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        setOpen(false);
+        setModelsOpen(false);
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, sessions.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, availableModels.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (sessions.length > 0) {
-          onSelectSession(sessions[selectedIndex]);
+        if (availableModels.length > 0) {
+          setActiveModel(availableModels[selectedIndex]);
+          setModelsOpen(false);
         }
       }
     };
     // Use capturing phase so it runs before generic app escape handlers
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, setOpen, sessions, selectedIndex, onSelectSession]);
+  }, [isModelsOpen, setModelsOpen, availableModels, selectedIndex, setActiveModel]);
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isModelsOpen && (
         <motion.div
-          className="peek-history"
+          className="peek-history" // Reusing the history CSS class for consistent styling
           variants={historyVariants}
           initial="hidden"
           animate="visible"
@@ -75,11 +70,11 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
         >
           <div className="peek-history-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="peek-history-title">Recent</span>
-              <kbd className="peek-kbd">⌘H</kbd>
+              <span className="peek-history-title">Models</span>
+              <kbd className="peek-kbd">⌘M</kbd>
             </div>
             <button
-              onClick={() => setOpen(false)}
+              onClick={() => setModelsOpen(false)}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -101,30 +96,30 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
             </button>
           </div>
           <div className="peek-history-list" ref={scrollContainerRef}>
-            {sessions.length === 0 ? (
-              <div className="peek-history-empty">No conversations yet</div>
+            {availableModels.length === 0 ? (
+              <div className="peek-history-empty">No models available</div>
             ) : (
-              sessions.map((session, idx) => (
+              availableModels.map((model, idx) => (
                 <button
-                  key={session.id}
+                  key={model}
                   className="peek-history-item"
                   style={{
                     background: idx === selectedIndex ? 'var(--peek-hover)' : 'transparent',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
                   }}
-                  onClick={() => onSelectSession(session)}
+                  onClick={() => {
+                    setActiveModel(model);
+                    setModelsOpen(false);
+                  }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                 >
                   <span className="peek-history-item-title">
-                    {session.title || 'Untitled'}
+                    {model}
                   </span>
-                  <span className="peek-history-item-meta">
-                    <span className="peek-history-item-model">
-                      {session.model}
-                    </span>
-                    <span className="peek-history-item-time">
-                      {formatRelativeTime(session.updatedAt)}
-                    </span>
-                  </span>
+                  {activeModel === model && <span style={{ fontSize: 12, color: '#4caf50' }}>Active</span>}
                 </button>
               ))
             )}

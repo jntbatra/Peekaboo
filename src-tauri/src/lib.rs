@@ -59,6 +59,15 @@ mod commands {
     }
 
     #[tauri::command]
+    pub fn open_settings(app: AppHandle) {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("settings") {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+
+    #[tauri::command]
     pub fn resize_peek(app: AppHandle, width: f64, height: f64) {
         if let Some(window) = get_peek_window(&app) {
             let _ = window.set_size(LogicalSize::new(width, height));
@@ -138,6 +147,7 @@ pub fn run() {
             commands::show_peek,
             commands::hide_peek,
             commands::toggle_peek,
+            commands::open_settings,
             commands::show_notification,
             commands::resize_peek,
             commands::read_clipboard_image,
@@ -155,14 +165,16 @@ pub fn run() {
 
             // ── System Tray ──
             let show_item = MenuItem::with_id(app, "show", "Show Peekaboo", true, None::<&str>)?;
+            let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_item, &settings_item, &quit_item])?;
 
             let _tray = TrayIconBuilder::new()
                 .tooltip("Peekaboo")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => commands::show_peek(app.clone()),
+                    "settings" => commands::open_settings(app.clone()),
                     "quit" => {
                         app.exit(0);
                     }

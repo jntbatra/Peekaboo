@@ -6,10 +6,12 @@ interface SettingsState {
   activeModel: string;
   ollamaBaseUrl: string;
   historyRetentionDays: number;
+  isModelsOpen: boolean;
 
   setHotkey: (v: string) => void;
   setActiveModel: (v: string) => void;
   setOllamaBaseUrl: (v: string) => void;
+  setModelsOpen: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -18,8 +20,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   activeModel: '',
   ollamaBaseUrl: 'http://localhost:11434',
   historyRetentionDays: 90,
+  isModelsOpen: false,
 
   setHotkey: (v) => set({ hotkey: v }),
   setActiveModel: (v) => set({ activeModel: v }),
   setOllamaBaseUrl: (v) => set({ ollamaBaseUrl: v }),
+  setModelsOpen: (v) => set({ isModelsOpen: v }),
 }));
