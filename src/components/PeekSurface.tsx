@@ -321,6 +321,7 @@ export const PeekSurface: React.FC = () => {
             {/* Input */}
             <Input
               onSubmit={handleSubmit}
+              onAbort={abortStream}
               onAttachImage={(base64, mediaType) => {
                 // Determine a nice label based on type
                 const isPng = mediaType.includes('png');

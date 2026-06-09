@@ -108,6 +108,7 @@ pub fn run() {
             commands::toggle_peek(app.clone());
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -120,7 +121,6 @@ pub fn run() {
                 })
                 .build(),
         )
-        .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_sql::Builder::new()
                 .add_migrations(

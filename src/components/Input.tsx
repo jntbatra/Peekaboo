@@ -5,9 +5,10 @@ import { usePeekStore } from '../store/peek';
 interface InputProps {
   onSubmit: () => void;
   onAttachImage?: (base64: string, mediaType: string) => void;
+  onAbort?: () => void;
 }
 
-export const Input: React.FC<InputProps> = ({ onSubmit, onAttachImage }) => {
+export const Input: React.FC<InputProps> = ({ onSubmit, onAttachImage, onAbort }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { input, setInput, isStreaming, visible } = usePeekStore();
 
@@ -92,9 +93,9 @@ export const Input: React.FC<InputProps> = ({ onSubmit, onAttachImage }) => {
         autoComplete="off"
       />
       {isStreaming && (
-        <div className="peek-input-status">
-          <div className="peek-streaming-dot" />
-        </div>
+        <button className="peek-input-status" onClick={onAbort} style={{ background: 'transparent', border: 'none', cursor: 'pointer', outline: 'none' }} title="Stop generation">
+          <div className="peek-stop-icon" style={{ width: 12, height: 12, background: 'currentColor', borderRadius: 2 }} />
+        </button>
       )}
       {!isStreaming && input.trim() && (
         <div className="peek-input-hint">
