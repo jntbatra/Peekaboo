@@ -1,11 +1,13 @@
 import React, { useRef, useEffect, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { usePeekStore } from '../store/peek';
 
 interface InputProps {
   onSubmit: () => void;
+  onAttachImage?: (base64: string, mediaType: string) => void;
 }
 
-export const Input: React.FC<InputProps> = ({ onSubmit }) => {
+export const Input: React.FC<InputProps> = ({ onSubmit, onAttachImage }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { input, setInput, isStreaming, visible } = usePeekStore();
 
@@ -42,6 +44,23 @@ export const Input: React.FC<InputProps> = ({ onSubmit }) => {
     }
   };
 
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!onAttachImage) return;
+    
+    try {
+      // Use our native Rust implementation to get the image as Base64 PNG.
+      // This bypasses WebKitGTK's buggy clipboard integration on Wayland.
+      const base64 = await invoke<string>('read_clipboard_image');
+      if (base64) {
+        e.preventDefault();
+        onAttachImage(base64, 'image/png');
+      }
+    } catch (err) {
+      // No image in clipboard or unsupported format; let normal text paste proceed
+      console.log('No image in clipboard or failed to read:', err);
+    }
+  }, [onAttachImage]);
+
   return (
     <div className="peek-input-container">
       <div className="peek-input-icon">
@@ -65,6 +84,7 @@ export const Input: React.FC<InputProps> = ({ onSubmit }) => {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder="Ask anything..."
         rows={1}
         disabled={isStreaming}

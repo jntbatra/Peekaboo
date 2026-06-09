@@ -49,7 +49,7 @@ export const PeekSurface: React.FC = () => {
 
   const { activeModel, setActiveModel, ollamaBaseUrl } = useSettingsStore();
   const { setSessions } = useHistoryStore();
-  const { attachments, remove: removeAttachment, clear: clearAttachments } = useAttachments();
+  const { attachments, add: addAttachment, remove: removeAttachment, clear: clearAttachments } = useAttachments();
   const { run: runStream, abort: abortStream } = useStream();
 
   const provider = useMemo(
@@ -104,7 +104,7 @@ export const PeekSurface: React.FC = () => {
       unlisten1.then((fn) => fn());
       unlisten2.then((fn) => fn());
     };
-  }, [setVisible]);
+  }, [setVisible, addAttachment]);
 
   // ── Dynamic window resize based on content ──
   useEffect(() => {
@@ -319,7 +319,19 @@ export const PeekSurface: React.FC = () => {
           {/* Main content */}
           <div className="peek-main">
             {/* Input */}
-            <Input onSubmit={handleSubmit} />
+            <Input
+              onSubmit={handleSubmit}
+              onAttachImage={(base64, mediaType) => {
+                // Determine a nice label based on type
+                const isPng = mediaType.includes('png');
+                addAttachment({
+                  type: 'clipboard',
+                  label: `Pasted Image${isPng ? ' (PNG)' : ''}`,
+                  content: base64,
+                  mediaType,
+                });
+              }}
+            />
 
             {/* Attachment chips */}
             <Attachments attachments={attachments} onRemove={removeAttachment} />

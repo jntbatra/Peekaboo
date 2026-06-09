@@ -75,6 +75,27 @@ mod commands {
             .body(body)
             .show();
     }
+
+    #[tauri::command]
+    pub fn read_clipboard_image() -> Result<String, String> {
+        use image::ImageEncoder;
+        use base64::Engine;
+        
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        let image_data = clipboard.get_image().map_err(|e| e.to_string())?;
+        
+        let mut bytes: Vec<u8> = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut bytes)
+            .write_image(
+                &image_data.bytes,
+                image_data.width as u32,
+                image_data.height as u32,
+                image::ColorType::Rgba8.into(),
+            )
+            .map_err(|e| e.to_string())?;
+            
+        Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+    }
 }
 
 // ─── App Bootstrap ──────────────────────────────────────────────────
@@ -82,6 +103,7 @@ mod commands {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             commands::toggle_peek(app.clone());
         }))
@@ -118,6 +140,7 @@ pub fn run() {
             commands::toggle_peek,
             commands::show_notification,
             commands::resize_peek,
+            commands::read_clipboard_image,
         ])
         .setup(|app| {
             // ── Register Alt+Space Shortcut ──
