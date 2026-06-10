@@ -65,10 +65,11 @@ export function useStream() {
 
         if ((err as Error).name === 'AbortError') {
           // Deliberate abort — not an error
-          // Final flush of whatever we have
-          setStreamingContent(full);
+          const finalFull = full + '\n\n*(Stopped by user)*';
+          setStreamingContent(finalFull);
           setIsStreaming(false);
-          return full;
+          onComplete?.(finalFull);
+          return finalFull;
         }
         setIsStreaming(false);
         onError?.(err as Error);

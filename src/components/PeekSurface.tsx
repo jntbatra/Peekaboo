@@ -400,7 +400,7 @@ export const PeekSurface: React.FC = () => {
               <AnimatePresence>
                 {hasConversation && (
                   <ExchangeView
-                    key="peek-exchange-view"
+                    key={`peek-exchange-view-${activeSessionId || 'new'}`}
                     messages={messages}
                     streamingContent={streamingContent}
                     isStreaming={isStreaming}
