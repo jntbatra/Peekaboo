@@ -57,6 +57,34 @@ export function useShortcuts(handlers: ShortcutHandlers) {
         if (opening) {
           useSettingsStore.getState().setModelsOpen(false);
           usePeekStore.getState().setLegendOpen(false);
+          usePeekStore.getState().setMemoryOverlay({ isOpen: false });
+        }
+        return;
+      }
+
+      // Alt+R → Toggle memory overlay
+      if (isMod && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        const opening = !usePeekStore.getState().memoryOverlay.isOpen;
+        
+        if (opening) {
+          useHistoryStore.getState().setOpen(false);
+          useSettingsStore.getState().setModelsOpen(false);
+          usePeekStore.getState().setLegendOpen(false);
+          
+          usePeekStore.getState().setMemoryOverlay({ isOpen: true, title: 'Recent Memories', items: [] });
+          
+          // Dynamically import database module to avoid circular dependency issues
+          import('../db/database').then(({ searchMemories }) => {
+            searchMemories('').then(memories => {
+              // Check if it's still open before setting
+              if (usePeekStore.getState().memoryOverlay.isOpen) {
+                usePeekStore.getState().setMemoryOverlay({ items: memories.map(m => ({ id: m.id, content: m.content })) });
+              }
+            });
+          });
+        } else {
+          usePeekStore.getState().setMemoryOverlay({ isOpen: false });
         }
         return;
       }
@@ -69,6 +97,7 @@ export function useShortcuts(handlers: ShortcutHandlers) {
         if (opening) {
           useHistoryStore.getState().setOpen(false);
           usePeekStore.getState().setLegendOpen(false);
+          usePeekStore.getState().setMemoryOverlay({ isOpen: false });
         }
         return;
       }
@@ -90,6 +119,7 @@ export function useShortcuts(handlers: ShortcutHandlers) {
         if (opening) {
           useHistoryStore.getState().setOpen(false);
           useSettingsStore.getState().setModelsOpen(false);
+          usePeekStore.getState().setMemoryOverlay({ isOpen: false });
         }
         return;
       }

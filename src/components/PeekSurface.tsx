@@ -8,6 +8,7 @@ import { ExchangeView } from './ExchangeView';
 import { History } from './History';
 import { Models } from './Models';
 import { Legend } from './Legend';
+import { MemoryOverlay } from './MemoryOverlay';
 import { Attachments } from './Attachments';
 import { usePeekStore } from '../store/peek';
 import { useSettingsStore } from '../store/settings';
@@ -24,6 +25,8 @@ import {
   getRecentSessions,
   getSessionMessages,
   getLastUserMessage,
+  saveMemory,
+  searchMemories,
 } from '../db/database';
 
 function generateId(): string {
@@ -134,17 +137,22 @@ export const PeekSurface: React.FC = () => {
       useHistoryStore.getState().setOpen(false);
       useSettingsStore.getState().setModelsOpen(false);
       usePeekStore.getState().setLegendOpen(false);
+      usePeekStore.getState().setMemoryOverlay({ isOpen: false });
     }
   }, [visible]);
 
   // ── Submit query ──
   const handleSubmit = useCallback(async () => {
     const query = input.trim();
-    if (!query || !activeModel) return;
+    if (!query) return;
+    
+    if (!activeModel) return;
 
     const userMessage = { role: 'user' as const, content: query };
     addMessage(userMessage);
     setInput('');
+
+    // Normal LLM Flow
 
     // Create session if needed
     let sessionId = activeSessionId;
@@ -316,9 +324,9 @@ export const PeekSurface: React.FC = () => {
   }, []);
 
   const { isModelsOpen } = useSettingsStore();
-  const { isLegendOpen } = usePeekStore();
+  const { isLegendOpen, memoryOverlay } = usePeekStore();
   const { isOpen: isHistoryOpen } = useHistoryStore();
-  const isMenuOpen = isModelsOpen || isLegendOpen || isHistoryOpen;
+  const isMenuOpen = isModelsOpen || isLegendOpen || isHistoryOpen || memoryOverlay.isOpen;
 
   return (
     <AnimatePresence>
@@ -418,6 +426,9 @@ export const PeekSurface: React.FC = () => {
             
             {/* Shortcuts Legend */}
             <Legend />
+            
+            {/* Memory Overlay */}
+            <MemoryOverlay />
           </div>
         </motion.div>
       )}

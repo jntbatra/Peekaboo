@@ -156,12 +156,20 @@ pub fn run() {
             tauri_plugin_sql::Builder::new()
                 .add_migrations(
                     "sqlite:peekaboo.db",
-                    vec![tauri_plugin_sql::Migration {
-                        version: 1,
-                        description: "Create sessions and messages tables",
-                        sql: include_str!("../../src/db/migrations/001_initial.sql"),
-                        kind: tauri_plugin_sql::MigrationKind::Up,
-                    }],
+                    vec![
+                        tauri_plugin_sql::Migration {
+                            version: 1,
+                            description: "Create sessions and messages tables",
+                            sql: include_str!("../../src/db/migrations/001_initial.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 2,
+                            description: "Create memories table",
+                            sql: include_str!("../../src/db/migrations/002_memories.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        }
+                    ],
                 )
                 .build(),
         )

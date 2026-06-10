@@ -44,6 +44,10 @@ interface PeekState {
 
   // Reset
   clear: () => void;
+
+  // Memory Overlay
+  memoryOverlay: { isOpen: boolean; title: string; items: { id: string; content: string }[] };
+  setMemoryOverlay: (update: Partial<{ isOpen: boolean; title: string; items: { id: string; content: string }[] }>) => void;
 }
 
 export const usePeekStore = create<PeekState>((set) => ({
@@ -80,6 +84,9 @@ export const usePeekStore = create<PeekState>((set) => ({
 
   isLegendOpen: false,
   setLegendOpen: (v) => set({ isLegendOpen: v }),
+
+  memoryOverlay: { isOpen: false, title: '', items: [] },
+  setMemoryOverlay: (update) => set((s) => ({ memoryOverlay: { ...s.memoryOverlay, ...update } })),
 
   clear: () =>
     set({

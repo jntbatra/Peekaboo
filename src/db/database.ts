@@ -133,3 +133,60 @@ export async function cleanOldSessions(retentionDays: number): Promise<void> {
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
   await d.execute('DELETE FROM sessions WHERE updated_at < ?', [cutoff]);
 }
+
+// ─── Memories ───────────────────────────────────────────────────────
+
+export interface Memory {
+  id: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export async function saveMemory(id: string, content: string): Promise<void> {
+  const d = await getDb();
+  const now = Date.now();
+  await d.execute(
+    'INSERT INTO memories (id, content, created_at, updated_at) VALUES (?, ?, ?, ?)',
+    [id, content, now, now]
+  );
+}
+
+export async function updateMemory(id: string, content: string): Promise<void> {
+  const d = await getDb();
+  await d.execute(
+    'UPDATE memories SET content = ?, updated_at = ? WHERE id = ?',
+    [content, Date.now(), id]
+  );
+}
+
+export async function deleteMemory(id: string): Promise<void> {
+  const d = await getDb();
+  await d.execute('DELETE FROM memories WHERE id = ?', [id]);
+}
+
+export async function searchMemories(query: string = '', limit: number = 20): Promise<Memory[]> {
+  const d = await getDb();
+  
+  let rows;
+  if (query.trim() === '') {
+    rows = await d.select<{ id: string; content: string; created_at: number; updated_at: number }[]>(
+      'SELECT * FROM memories ORDER BY created_at DESC LIMIT ?',
+      [limit]
+    );
+  } else {
+    // Simple LIKE search
+    const searchTerm = `%${query}%`;
+    rows = await d.select<{ id: string; content: string; created_at: number; updated_at: number }[]>(
+      'SELECT * FROM memories WHERE content LIKE ? ORDER BY created_at DESC LIMIT ?',
+      [searchTerm, limit]
+    );
+  }
+
+  return rows.map(r => ({
+    id: r.id,
+    content: r.content,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at
+  }));
+}
