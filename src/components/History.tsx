@@ -53,6 +53,7 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
+        e.stopPropagation();
         if (sessions.length > 0) {
           onSelectSession(sessions[selectedIndex]);
         }

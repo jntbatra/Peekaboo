@@ -47,6 +47,7 @@ export const Models: React.FC = () => {
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
+        e.stopPropagation();
         if (availableModels.length > 0) {
           setActiveModel(availableModels[selectedIndex]);
           setModelsOpen(false);
