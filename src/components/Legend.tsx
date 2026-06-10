@@ -48,7 +48,6 @@ export const Legend: React.FC = () => {
           <div className="peek-history-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="peek-history-title">Keyboard Shortcuts</span>
-              <kbd className="peek-kbd">Alt+/</kbd>
             </div>
             <button
               onClick={() => setLegendOpen(false)}

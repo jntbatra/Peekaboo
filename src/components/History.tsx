@@ -24,6 +24,7 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
   const { sessions, isOpen, setOpen, setSessions } = useHistoryStore();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   
@@ -40,16 +41,17 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
     if (isOpen) {
       setSelectedIndex(0);
       setSearchQuery('');
+      setIsSearchVisible(false);
       setEditingId(null);
     }
   }, [isOpen]);
 
-  // Focus search input when opened
+  // Focus search input when it becomes visible
   useEffect(() => {
-    if (isOpen && searchInputRef.current && !editingId) {
+    if (isOpen && isSearchVisible && searchInputRef.current && !editingId) {
       searchInputRef.current.focus();
     }
-  }, [isOpen, editingId]);
+  }, [isOpen, isSearchVisible, editingId]);
 
   // Focus edit input when editing starts
   useEffect(() => {
@@ -96,10 +98,27 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
   useEffect(() => {
     if (!isOpen || editingId) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      
+      // Auto-show search on typing
+      if (!isSearchVisible && e.key.length === 1 && sessions.length > 0) {
+        setIsSearchVisible(true);
+        setSearchQuery((prev) => prev + e.key);
         e.preventDefault();
-        e.stopPropagation();
-        setOpen(false);
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (isSearchVisible && searchQuery) {
+          e.preventDefault();
+          e.stopPropagation();
+          setSearchQuery('');
+          setIsSearchVisible(false);
+        } else {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(false);
+        }
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedIndex((i) => Math.min(i + 1, filteredSessions.length - 1));
@@ -116,7 +135,7 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, setOpen, filteredSessions, selectedIndex, onSelectSession, editingId]);
+  }, [isOpen, setOpen, filteredSessions, selectedIndex, onSelectSession, editingId, isSearchVisible, searchQuery, sessions.length]);
 
   return (
     <AnimatePresence>
@@ -131,7 +150,6 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
           <div className="peek-history-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="peek-history-title">Recent</span>
-              <kbd className="peek-kbd">Alt+H</kbd>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -156,24 +174,38 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
             </button>
           </div>
           
-          <div className="peek-history-search">
-            <input 
-              ref={searchInputRef}
-              type="text" 
-              placeholder="Search conversations..." 
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setSelectedIndex(0);
-              }}
-              onKeyDown={(e) => {
-                // Prevent input keys from bubbling up if not handled
-                if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter' && e.key !== 'Escape') {
-                  e.stopPropagation();
-                }
-              }}
-            />
-          </div>
+          <AnimatePresence>
+            {isSearchVisible && sessions.length > 0 && (
+              <motion.div 
+                className="peek-history-search"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                style={{ overflow: 'hidden' }}
+              >
+                <input 
+                  ref={searchInputRef}
+                  type="text" 
+                  placeholder="Search conversations..." 
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSelectedIndex(0);
+                  }}
+                  onKeyDown={(e) => {
+                    // Let keyboard shortcuts bubble up to global handlers
+                    if (e.altKey || e.ctrlKey || e.metaKey) return;
+                    
+                    // Prevent normal typing keys from bubbling up
+                    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter' && e.key !== 'Escape') {
+                      e.stopPropagation();
+                    }
+                  }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="peek-history-list" ref={scrollContainerRef}>
             {filteredSessions.length === 0 ? (
