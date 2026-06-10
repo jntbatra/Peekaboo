@@ -77,7 +77,7 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
           <div className="peek-history-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="peek-history-title">Recent</span>
-              <kbd className="peek-kbd">⌘H</kbd>
+              <kbd className="peek-kbd">Alt+H</kbd>
             </div>
             <button
               onClick={() => setOpen(false)}

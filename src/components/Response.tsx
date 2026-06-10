@@ -11,13 +11,22 @@ interface ResponseProps {
 
 export const Response: React.FC<ResponseProps> = ({ content, isStreaming }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const autoScrollEnabled = useRef(true);
 
-  // Auto-scroll to bottom during streaming
+  // Auto-scroll to bottom during streaming, but only if the user hasn't manually scrolled up
   useEffect(() => {
-    if (isStreaming && containerRef.current) {
+    if (isStreaming && containerRef.current && autoScrollEnabled.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [content, isStreaming]);
+
+  const handleScroll = () => {
+    if (!containerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    // Check if we are within ~20px of the bottom
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 20;
+    autoScrollEnabled.current = isAtBottom;
+  };
 
   if (!content) return null;
 
@@ -25,9 +34,11 @@ export const Response: React.FC<ResponseProps> = ({ content, isStreaming }) => {
     <motion.div
       className="peek-response"
       ref={containerRef}
+      onScroll={handleScroll}
       variants={responseVariants}
       initial="hidden"
       animate="visible"
+      exit="exit"
     >
       <div className="peek-response-content">
         <Suspense fallback={<div className="peek-cursor" aria-hidden="true" />}>

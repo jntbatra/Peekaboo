@@ -72,7 +72,7 @@ export const Models: React.FC = () => {
           <div className="peek-history-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="peek-history-title">Models</span>
-              <kbd className="peek-kbd">⌘M</kbd>
+              <kbd className="peek-kbd">Alt+M</kbd>
             </div>
             <button
               onClick={() => setModelsOpen(false)}

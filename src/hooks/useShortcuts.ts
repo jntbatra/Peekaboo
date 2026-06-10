@@ -18,9 +18,9 @@ export function useShortcuts(handlers: ShortcutHandlers) {
     if (!visible) return;
 
     const handleKeyDown: KeyHandler = (e) => {
-      const isMod = e.ctrlKey || e.metaKey;
+      const isMod = e.altKey;
 
-      // Enter → Submit (without Shift)
+      // Enter → Submit (without Shift or Alt)
       if (e.key === 'Enter' && !e.shiftKey && !isMod) {
         e.preventDefault();
         handlers.onSubmit();
@@ -34,21 +34,21 @@ export function useShortcuts(handlers: ShortcutHandlers) {
         return;
       }
 
-      // Cmd/Ctrl+K → Clear conversation
-      if (isMod && e.key === 'k') {
+      // Alt+K → Clear conversation
+      if (isMod && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         handlers.onClear();
         return;
       }
 
-      // Cmd/Ctrl+H → Toggle history
-      if (isMod && e.key === 'h') {
+      // Alt+H → Toggle history
+      if (isMod && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         useHistoryStore.getState().toggleOpen();
         return;
       }
 
-      // Cmd/Ctrl+, → Open settings
+      // Alt+, → Open settings
       if (isMod && e.key === ',') {
         e.preventDefault();
         import('@tauri-apps/api/core').then(({ invoke }) => {
@@ -57,7 +57,7 @@ export function useShortcuts(handlers: ShortcutHandlers) {
         return;
       }
 
-      // Cmd/Ctrl+/ → Toggle legend
+      // Alt+/ → Toggle legend
       if (isMod && e.key === '/') {
         e.preventDefault();
         const store = usePeekStore.getState();

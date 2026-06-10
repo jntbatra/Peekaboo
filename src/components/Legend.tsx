@@ -6,12 +6,12 @@ import { historyVariants } from '../lib/motion';
 const HOTKEYS = [
   { key: 'Alt+Space', description: 'Summon or Hide Peekaboo' },
   { key: 'Enter', description: 'Send Message' },
-  { key: 'Cmd+Enter', description: 'Line Break (Multi-line)' },
-  { key: 'Cmd+K', description: 'Clear Conversation' },
-  { key: 'Cmd+H', description: 'Toggle History Panel' },
-  { key: 'Cmd+M', description: 'Toggle Model Switcher' },
-  { key: 'Cmd+,', description: 'Open Settings Window' },
-  { key: 'Cmd+/', description: 'Toggle this Shortcuts Legend' },
+  { key: 'Shift+Enter', description: 'Line Break (Multi-line)' },
+  { key: 'Alt+K', description: 'Clear Conversation' },
+  { key: 'Alt+H', description: 'Toggle History Panel' },
+  { key: 'Alt+M', description: 'Toggle Model Switcher' },
+  { key: 'Alt+,', description: 'Open Settings Window' },
+  { key: 'Alt+/', description: 'Toggle this Shortcuts Legend' },
   { key: 'Escape', description: 'Hide Window / Dismiss Menu' },
   { key: 'Up Arrow', description: 'Load Previous Query (when input empty)' },
 ];
@@ -46,7 +46,7 @@ export const Legend: React.FC = () => {
           <div className="peek-history-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="peek-history-title">Keyboard Shortcuts</span>
-              <kbd className="peek-kbd">⌘/</kbd>
+              <kbd className="peek-kbd">Alt+/</kbd>
             </div>
             <button
               onClick={() => setLegendOpen(false)}

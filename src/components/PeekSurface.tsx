@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -53,6 +53,7 @@ export const PeekSurface: React.FC = () => {
   const { setSessions } = useHistoryStore();
   const { attachments, add: addAttachment, remove: removeAttachment, clear: clearAttachments } = useAttachments();
   const { run: runStream, abort: abortStream } = useStream();
+  const [showCleared, setShowCleared] = useState(false);
 
   const provider = useMemo(
     () => new OllamaProvider(ollamaBaseUrl),
@@ -248,6 +249,8 @@ export const PeekSurface: React.FC = () => {
     abortStream();
     clear();
     clearAttachments();
+    setShowCleared(true);
+    setTimeout(() => setShowCleared(false), 2000);
   }, [abortStream, clear, clearAttachments]);
 
   // ── Previous query ──
@@ -359,7 +362,24 @@ export const PeekSurface: React.FC = () => {
                     <span className="peek-status-model">{activeModel}</span>
                   )}
                 </div>
-                <div className="peek-status-right">
+                <div className="peek-status-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AnimatePresence>
+                    {showCleared && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="peek-bg-indicator"
+                        style={{ color: '#4caf50', background: 'rgba(76, 175, 80, 0.1)' }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        Cleared
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                   {backgroundTasks.filter((t) => t.status === 'running').length >
                     0 && (
                     <span className="peek-bg-indicator">
@@ -371,9 +391,11 @@ export const PeekSurface: React.FC = () => {
               </div>
 
               {/* Response */}
-              {hasResponse && (
-                <Response content={displayContent} isStreaming={isStreaming} />
-              )}
+              <AnimatePresence mode="popLayout">
+                {hasResponse && (
+                  <Response key="peek-response-block" content={displayContent} isStreaming={isStreaming} />
+                )}
+              </AnimatePresence>
             </div>
             
             {/* History Panel */}

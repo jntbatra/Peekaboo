@@ -27,6 +27,11 @@ export const responseVariants: Variants = {
     y: 0,
     transition: { duration: 0.15, delay: 0.05 },
   },
+  exit: {
+    opacity: 0,
+    y: -4,
+    transition: { duration: 0.1, ease: 'easeIn' },
+  },
 };
 
 export const historyVariants: Variants = {

@@ -79,7 +79,12 @@ mod commands {
     #[tauri::command]
     pub fn resize_peek(app: AppHandle, width: f64, height: f64) {
         if let Some(window) = get_peek_window(&app) {
-            let _ = window.set_size(LogicalSize::new(width, height));
+            if let Ok(pos) = window.outer_position() {
+                let _ = window.set_size(LogicalSize::new(width, height));
+                let _ = window.set_position(pos);
+            } else {
+                let _ = window.set_size(LogicalSize::new(width, height));
+            }
         }
     }
 
