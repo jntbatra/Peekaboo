@@ -308,7 +308,7 @@ export const PeekSurface: React.FC = () => {
     return () => clearInterval(interval);
   }, [provider]);
 
-  const hasResponse = streamingContent || messages.some((m) => m.role === 'assistant');
+  const hasResponse = isStreaming || !!streamingContent || messages.some((m) => m.role === 'assistant');
   const displayContent =
     streamingContent ||
     (messages.filter((m) => m.role === 'assistant').pop()?.content as string) ||

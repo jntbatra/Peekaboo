@@ -13,7 +13,10 @@ export const Response: React.FC<ResponseProps> = ({ content, isStreaming }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollEnabled = useRef(true);
 
-  // Auto-scroll to bottom during streaming, but only if the user hasn't manually scrolled up
+  // Loading state: streaming started but no tokens received yet
+  const isLoading = isStreaming && !content;
+
+  // Auto-scroll to bottom during streaming, unless user has manually scrolled up
   useEffect(() => {
     if (isStreaming && containerRef.current && autoScrollEnabled.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -23,12 +26,11 @@ export const Response: React.FC<ResponseProps> = ({ content, isStreaming }) => {
   const handleScroll = () => {
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    // Check if we are within ~20px of the bottom
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 20;
     autoScrollEnabled.current = isAtBottom;
   };
 
-  if (!content) return null;
+  if (!content && !isLoading) return null;
 
   return (
     <motion.div
@@ -41,12 +43,20 @@ export const Response: React.FC<ResponseProps> = ({ content, isStreaming }) => {
       exit="exit"
     >
       <div className="peek-response-content">
-        <Suspense fallback={<div className="peek-cursor" aria-hidden="true" />}>
-          <MarkdownWrapper>{content}</MarkdownWrapper>
-        </Suspense>
-        {isStreaming && <span className="peek-cursor" aria-hidden="true" />}
+        {isLoading ? (
+          <div className="peek-loading-dots" aria-label="Thinking...">
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : (
+          <Suspense fallback={<div className="peek-loading-dots"><span /><span /><span /></div>}>
+            <MarkdownWrapper>{content}</MarkdownWrapper>
+          </Suspense>
+        )}
+        {/* Only show cursor while tokens are actively arriving — not before or after */}
+        {isStreaming && content && <span className="peek-cursor" aria-hidden="true" />}
       </div>
     </motion.div>
   );
 };
-

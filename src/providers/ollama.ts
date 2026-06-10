@@ -20,7 +20,7 @@ export class OllamaProvider implements Provider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
-      body: JSON.stringify({ model, messages, stream: true }),
+      body: JSON.stringify({ model, messages, stream: true, keep_alive: "5s" }),
     });
 
     if (!res.ok) {

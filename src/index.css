@@ -411,6 +411,37 @@ html, body, #root {
   vertical-align: text-bottom;
 }
 
+/* Model loading indicator */
+.peek-loading-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 2px;
+}
+
+.peek-loading-dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--peek-accent);
+  opacity: 0.3;
+  animation: peek-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.peek-loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.peek-loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes peek-dot-pulse {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.85); }
+  40%           { opacity: 1;   transform: scale(1.1); }
+}
+
 /* ─── History Panel ─────────────────────────────────────────────────── */
 
 .peek-history {
