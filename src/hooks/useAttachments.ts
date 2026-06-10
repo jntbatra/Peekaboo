@@ -38,8 +38,9 @@ export function useAttachments() {
       const parts: Array<
         | { type: 'text'; text: string }
         | { type: 'image_url'; image_url: { url: string } }
-        | { type: 'text'; text: string }
-      > = [{ type: 'text', text }];
+      > = [];
+
+      let textContent = '';
 
       for (const att of attachments) {
         if (att.mediaType.startsWith('image/')) {
@@ -48,13 +49,13 @@ export function useAttachments() {
             image_url: { url: `data:${att.mediaType};base64,${att.content}` },
           });
         } else {
-          // Text attachments: prepend as a quoted block
-          parts[0] = {
-            type: 'text',
-            text: `<context>\n${att.content}\n</context>\n\n${text}`,
-          };
+          // Text attachments
+          textContent += `<context>\n${att.content}\n</context>\n\n`;
         }
       }
+
+      textContent += text;
+      parts.unshift({ type: 'text', text: textContent });
 
       return parts;
     },

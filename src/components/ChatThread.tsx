@@ -2,20 +2,57 @@ import React, { useRef, useEffect, Suspense, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Message } from '../providers/types';
 
+import type { Attachment } from '../hooks/useAttachments';
+
 const MarkdownWrapper = React.lazy(() => import('../lib/MarkdownWrapper'));
 
 interface ChatThreadProps {
   messages: Message[];
   streamingContent: string;
   isStreaming: boolean;
+  onClickAttachment?: (att: Attachment) => void;
 }
 
 function getTextContent(content: Message['content']): string {
-  if (typeof content === 'string') return content;
+  if (typeof content === 'string') {
+    if (content.trim().startsWith('[') && content.trim().endsWith(']')) {
+      try {
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((p: any) => p.type === 'text' && p.text)
+            .map((p: any) => p.text)
+            .join('');
+        }
+      } catch (e) {
+        // Not a JSON array, fall through
+      }
+    }
+    return content;
+  }
   return content
     .filter((p) => p.type === 'text' && p.text)
     .map((p) => p.text!)
     .join('');
+}
+
+function parseUserContent(raw: string): { contexts: string[], prompt: string } {
+  const contexts: string[] = [];
+  let prompt = raw;
+  let startIndex = prompt.indexOf('<context>');
+  
+  while (startIndex !== -1) {
+    const endIndex = prompt.indexOf('</context>', startIndex + 9);
+    if (endIndex !== -1) {
+      contexts.push(prompt.substring(startIndex + 9, endIndex).trim());
+      prompt = prompt.substring(0, startIndex) + prompt.substring(endIndex + 10);
+      startIndex = prompt.indexOf('<context>');
+    } else {
+      break;
+    }
+  }
+  
+  return { contexts, prompt: prompt.trim() };
 }
 
 function CopyResponseButton({ text }: { text: string }) {
@@ -59,6 +96,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
   messages,
   streamingContent,
   isStreaming,
+  onClickAttachment,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollEnabled = useRef(true);
@@ -136,11 +174,38 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
               <CopyResponseButton text={getTextContent(assistant.content)} />
             </div>
           )}
-          {user && (
-            <div className="peek-thread-user">
-              <span className="peek-thread-user-bubble">{getTextContent(user.content)}</span>
-            </div>
-          )}
+          {user && (() => {
+            const { contexts, prompt } = parseUserContent(getTextContent(user.content));
+            return (
+              <div className="peek-thread-user">
+                {contexts.length > 0 && (
+                  <div className="peek-thread-user-contexts">
+                     {contexts.map((ctx, i) => {
+                       const short = ctx.replace(/\s+/g, ' ').slice(0, 30);
+                       const isClickable = ctx.length > 30;
+                       return (
+                         <div 
+                           key={i} 
+                           className={`peek-user-context-chip${isClickable ? ' peek-clickable' : ''}`} 
+                           title={isClickable ? "Click to view full context" : undefined}
+                           onClick={isClickable ? () => onClickAttachment?.({
+                             id: `ctx-${i}-${Date.now()}`,
+                             type: 'selection',
+                             label: `Context: "${short}..."`,
+                             content: ctx,
+                             mediaType: 'text/plain'
+                           }) : undefined}
+                         >
+                           ▤ {short}{isClickable ? '...' : ''}
+                         </div>
+                       );
+                     })}
+                  </div>
+                )}
+                <span className="peek-thread-user-bubble">{prompt}</span>
+              </div>
+            );
+          })()}
         </motion.div>
       ))}
     </div>

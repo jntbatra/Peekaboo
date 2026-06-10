@@ -37,13 +37,12 @@ export const Attachments: React.FC<AttachmentsProps> = ({ attachments, onRemove,
           return (
             <motion.div
               key={att.id}
-              className="peek-chip"
+              className={`peek-chip${expandable ? ' peek-clickable' : ''}`}
               onClick={() => {
                 if (expandable) {
                   onClickAttachment?.(att);
                 }
               }}
-              style={{ cursor: onClickAttachment && expandable ? 'pointer' : 'default' }}
               variants={chipVariants}
               initial="hidden"
               animate="visible"

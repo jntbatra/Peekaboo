@@ -471,6 +471,10 @@ export const PeekSurface: React.FC = () => {
                     streamingContent={streamingContent}
                     isStreaming={isStreaming}
                     onExchangeChange={handleExchangeChange}
+                    onClickAttachment={(att) => {
+                      setViewingAttachment(att);
+                      setHasActiveModalHeight(true);
+                    }}
                   />
                 )}
               </AnimatePresence>
