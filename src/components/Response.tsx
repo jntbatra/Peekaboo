@@ -1,9 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { responseVariants } from '../lib/motion';
-import { markdownComponents } from '../lib/markdown';
+
+const MarkdownWrapper = React.lazy(() => import('../lib/MarkdownWrapper'));
 
 interface ResponseProps {
   content: string;
@@ -31,12 +30,9 @@ export const Response: React.FC<ResponseProps> = ({ content, isStreaming }) => {
       animate="visible"
     >
       <div className="peek-response-content">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={markdownComponents}
-        >
-          {content}
-        </ReactMarkdown>
+        <Suspense fallback={<div className="peek-cursor" aria-hidden="true" />}>
+          <MarkdownWrapper>{content}</MarkdownWrapper>
+        </Suspense>
         {isStreaming && <span className="peek-cursor" aria-hidden="true" />}
       </div>
     </motion.div>

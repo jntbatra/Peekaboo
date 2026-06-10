@@ -38,6 +38,10 @@ interface PeekState {
   updateBackgroundTask: (id: string, update: Partial<BackgroundTask>) => void;
   removeBackgroundTask: (id: string) => void;
 
+  // Legend
+  isLegendOpen: boolean;
+  setLegendOpen: (v: boolean) => void;
+
   // Reset
   clear: () => void;
 }
@@ -73,6 +77,9 @@ export const usePeekStore = create<PeekState>((set) => ({
     set((s) => ({
       backgroundTasks: s.backgroundTasks.filter((t) => t.id !== id),
     })),
+
+  isLegendOpen: false,
+  setLegendOpen: (v) => set({ isLegendOpen: v }),
 
   clear: () =>
     set({

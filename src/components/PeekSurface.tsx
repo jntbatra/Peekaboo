@@ -7,6 +7,7 @@ import { Input } from './Input';
 import { Response } from './Response';
 import { History } from './History';
 import { Models } from './Models';
+import { Legend } from './Legend';
 import { Attachments } from './Attachments';
 import { usePeekStore } from '../store/peek';
 import { useSettingsStore } from '../store/settings';
@@ -313,6 +314,9 @@ export const PeekSurface: React.FC = () => {
           initial="hidden"
           animate="visible"
           exit="exit"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Peekaboo AI Assistant"
         >
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gridTemplateRows: '1fr' }}>
             {/* Main content */}
@@ -370,6 +374,9 @@ export const PeekSurface: React.FC = () => {
             
             {/* Models Panel */}
             <Models />
+            
+            {/* Shortcuts Legend */}
+            <Legend />
           </div>
         </motion.div>
       )}
