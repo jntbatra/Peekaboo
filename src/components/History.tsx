@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useHistoryStore, type Session } from '../store/history';
 import { historyVariants } from '../lib/motion';
+import { updateSessionTitle, deleteSession, getRecentSessions } from '../db/database';
 
 interface HistoryProps {
   onSelectSession: (session: Session) => void;
@@ -20,26 +21,80 @@ function formatRelativeTime(timestamp: number): string {
 }
 
 export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
-  const { sessions, isOpen, setOpen } = useHistoryStore();
-  const [selectedIndex, setSelectedIndex] = React.useState(0);
-  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const { sessions, isOpen, setOpen, setSessions } = useHistoryStore();
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredSessions = sessions.filter(s => 
+    (s.title || 'Untitled').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Reset selection when opened
-  React.useEffect(() => {
-    if (isOpen) setSelectedIndex(0);
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedIndex(0);
+      setSearchQuery('');
+      setEditingId(null);
+    }
   }, [isOpen]);
 
+  // Focus search input when opened
+  useEffect(() => {
+    if (isOpen && searchInputRef.current && !editingId) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen, editingId]);
+
+  // Focus edit input when editing starts
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
   // Scroll active item into view
-  React.useEffect(() => {
+  useEffect(() => {
     if (!scrollContainerRef.current) return;
     const activeEl = scrollContainerRef.current.children[selectedIndex] as HTMLElement;
     if (activeEl) {
       activeEl.scrollIntoView({ block: 'nearest' });
     }
-  }, [selectedIndex]);
+  }, [selectedIndex, filteredSessions.length]);
 
-  React.useEffect(() => {
-    if (!isOpen) return;
+  const refreshSessions = async () => {
+    try {
+      const recent = await getRecentSessions();
+      setSessions(recent);
+    } catch (err) {
+      console.error('Failed to refresh sessions:', err);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent, session: Session) => {
+    e.preventDefault();
+    if (editTitle.trim() && editTitle.trim() !== session.title) {
+      await updateSessionTitle(session.id, editTitle.trim());
+      await refreshSessions();
+    }
+    setEditingId(null);
+    if (searchInputRef.current) searchInputRef.current.focus();
+  };
+
+  const handleDelete = async (e: React.MouseEvent, session: Session) => {
+    e.stopPropagation();
+    await deleteSession(session.id);
+    await refreshSessions();
+  };
+
+  useEffect(() => {
+    if (!isOpen || editingId) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -47,22 +102,21 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
         setOpen(false);
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, sessions.length - 1));
+        setSelectedIndex((i) => Math.min(i + 1, filteredSessions.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
         e.stopPropagation();
-        if (sessions.length > 0) {
-          onSelectSession(sessions[selectedIndex]);
+        if (filteredSessions.length > 0) {
+          onSelectSession(filteredSessions[selectedIndex]);
         }
       }
     };
-    // Use capturing phase so it runs before generic app escape handlers
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, setOpen, sessions, selectedIndex, onSelectSession]);
+  }, [isOpen, setOpen, filteredSessions, selectedIndex, onSelectSession, editingId]);
 
   return (
     <AnimatePresence>
@@ -101,23 +155,102 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
               </svg>
             </button>
           </div>
+          
+          <div className="peek-history-search">
+            <input 
+              ref={searchInputRef}
+              type="text" 
+              placeholder="Search conversations..." 
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSelectedIndex(0);
+              }}
+              onKeyDown={(e) => {
+                // Prevent input keys from bubbling up if not handled
+                if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter' && e.key !== 'Escape') {
+                  e.stopPropagation();
+                }
+              }}
+            />
+          </div>
+
           <div className="peek-history-list" ref={scrollContainerRef}>
-            {sessions.length === 0 ? (
-              <div className="peek-history-empty">No conversations yet</div>
+            {filteredSessions.length === 0 ? (
+              <div className="peek-history-empty">
+                {searchQuery ? 'No matching conversations' : 'No conversations yet'}
+              </div>
             ) : (
-              sessions.map((session, idx) => (
+              filteredSessions.map((session, idx) => (
                 <button
                   key={session.id}
                   className="peek-history-item"
                   style={{
-                    background: idx === selectedIndex ? 'var(--peek-hover)' : 'transparent',
+                    background: idx === selectedIndex && editingId !== session.id ? 'var(--peek-hover)' : 'transparent',
                   }}
-                  onClick={() => onSelectSession(session)}
+                  onClick={() => {
+                    if (editingId !== session.id) {
+                      onSelectSession(session);
+                    }
+                  }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                 >
-                  <span className="peek-history-item-title">
-                    {session.title || 'Untitled'}
-                  </span>
+                  <div className="peek-history-item-top">
+                    {editingId === session.id ? (
+                      <form 
+                        onSubmit={(e) => handleEditSubmit(e, session)}
+                        style={{ width: '100%' }}
+                      >
+                        <input
+                          ref={editInputRef}
+                          className="peek-history-edit-input"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onBlur={(e) => handleEditSubmit(e, session)}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Escape') {
+                              e.preventDefault();
+                              setEditingId(null);
+                              if (searchInputRef.current) searchInputRef.current.focus();
+                            }
+                          }}
+                        />
+                      </form>
+                    ) : (
+                      <>
+                        <span className="peek-history-item-title">
+                          {session.title || 'Untitled'}
+                        </span>
+                        <div className="peek-history-item-actions">
+                          <div 
+                            className="peek-history-action-btn"
+                            title="Rename"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditTitle(session.title || 'Untitled');
+                              setEditingId(session.id);
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 20h9"></path>
+                              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                            </svg>
+                          </div>
+                          <div 
+                            className="peek-history-action-btn"
+                            title="Delete"
+                            onClick={(e) => handleDelete(e, session)}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <span className="peek-history-item-meta">
                     <span className="peek-history-item-model">
                       {session.model}

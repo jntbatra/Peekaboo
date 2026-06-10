@@ -824,6 +824,28 @@ html, body, #root {
   font-weight: 500;
 }
 
+.peek-history-search {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--peek-border);
+}
+
+.peek-history-search input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--peek-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: var(--peek-text);
+  font-family: var(--peek-font);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.peek-history-search input:focus {
+  border-color: var(--peek-border-focus);
+}
+
 .peek-history-list {
   flex: 1;
   overflow-y: auto;
@@ -843,18 +865,26 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   border-radius: var(--peek-radius-sm);
   cursor: pointer;
   text-align: left;
   transition: background 0.1s ease;
-  gap: 4px;
+  position: relative;
 }
 
 .peek-history-item:hover {
   background: var(--peek-hover);
+}
+
+.peek-history-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .peek-history-item-title {
@@ -864,6 +894,51 @@ html, body, #root {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.peek-history-item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.peek-history-item:hover .peek-history-item-actions {
+  opacity: 1;
+}
+
+.peek-history-action-btn {
+  background: transparent;
+  border: 1px solid var(--peek-border);
+  color: var(--peek-text-muted);
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.peek-history-action-btn:hover {
+  color: var(--peek-text);
+  border-color: var(--peek-border-focus);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.peek-history-edit-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--peek-border-focus);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--peek-text);
+  font-family: var(--peek-font);
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
 }
 
 .peek-history-item-meta {

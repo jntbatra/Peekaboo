@@ -37,6 +37,12 @@ export async function updateSessionTitle(
   );
 }
 
+export async function deleteSession(id: string): Promise<void> {
+  const d = await getDb();
+  // messages have ON DELETE CASCADE so deleting session is enough
+  await d.execute('DELETE FROM sessions WHERE id = ?', [id]);
+}
+
 export async function getRecentSessions(
   limit: number = 50
 ): Promise<Session[]> {
@@ -62,10 +68,6 @@ export async function getRecentSessions(
   }));
 }
 
-export async function deleteSession(id: string): Promise<void> {
-  const d = await getDb();
-  await d.execute('DELETE FROM sessions WHERE id = ?', [id]);
-}
 
 // ─── Messages ───────────────────────────────────────────────────────
 
