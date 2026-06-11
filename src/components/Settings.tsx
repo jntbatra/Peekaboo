@@ -1,13 +1,48 @@
 import React from 'react';
 import { useSettingsStore } from '../store/settings';
 
+const Toggle: React.FC<{ checked: boolean; onChange: (checked: boolean) => void }> = ({ checked, onChange }) => (
+  <button
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    style={{
+      width: 40,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: checked ? '#4caf50' : 'rgba(255,255,255,0.2)',
+      position: 'relative',
+      border: 'none',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s',
+      padding: 0,
+    }}
+  >
+    <div
+      style={{
+        width: 20,
+        height: 20,
+        borderRadius: '50%',
+        backgroundColor: '#fff',
+        position: 'absolute',
+        top: 2,
+        left: checked ? 18 : 2,
+        transition: 'left 0.2s',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+      }}
+    />
+  </button>
+);
+
+
+
 export const Settings: React.FC = () => {
   const { 
-    hotkey,
     activeProvider,
     ollamaBaseUrl, setOllamaBaseUrl,
     historyRetentionDays,
-    systemPrompt, setSystemPrompt
+    systemPrompt, setSystemPrompt,
+    autoCaptureSelection, setAutoCaptureSelection
   } = useSettingsStore();
 
   React.useEffect(() => {
@@ -53,14 +88,25 @@ export const Settings: React.FC = () => {
         {/* Hotkey Section */}
         <section style={{ marginBottom: 32 }}>
           <h3 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--peek-text-muted)', letterSpacing: '0.05em', marginBottom: 12 }}>Global Shortcut</h3>
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--peek-border)', borderRadius: 8, padding: '16px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--peek-border)', borderRadius: 8, padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 14 }}>Summon Peekaboo</span>
-              <kbd className="peek-kbd" style={{ fontSize: 12, padding: '4px 8px', height: 'auto' }}>{hotkey}</kbd>
+              <kbd className="peek-kbd" style={{ fontSize: 12, padding: '4px 8px', height: 'auto' }}>Alt+Space</kbd>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--peek-text-muted)', marginTop: 8, lineHeight: 1.4 }}>
-              Note: Changing global hotkeys dynamically is not yet supported in this version. The default is Alt+Space.
-            </p>
+
+            <div style={{ height: '1px', background: 'var(--peek-border)', margin: '4px 0' }} />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: 14, display: 'block' }}>Capture Highlighted Text</span>
+                <span style={{ fontSize: 12, color: 'var(--peek-text-muted)', marginTop: 4, display: 'block' }}>
+                  Automatically fill the input with currently selected text when summoning.
+                </span>
+              </div>
+              <Toggle checked={autoCaptureSelection} onChange={setAutoCaptureSelection} />
+            </div>
+
           </div>
         </section>
 

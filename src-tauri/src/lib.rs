@@ -21,7 +21,25 @@ mod commands {
     use super::get_peek_window;
 
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Mutex;
+    use tauri::State;
     static POSITIONED: AtomicBool = AtomicBool::new(false);
+
+    #[derive(Default, serde::Deserialize, Clone)]
+    pub struct AppSettings {
+        pub auto_capture_selection: bool,
+    }
+
+    pub struct AppState {
+        pub settings: Mutex<AppSettings>,
+    }
+
+    #[tauri::command]
+    pub fn update_settings(state: State<'_, AppState>, settings: AppSettings) {
+        if let Ok(mut lock) = state.settings.lock() {
+            *lock = settings;
+        }
+    }
 
     #[tauri::command]
     pub fn show_peek(app: AppHandle) {
@@ -91,13 +109,21 @@ mod commands {
     }
 
     #[tauri::command]
-    pub fn toggle_peek(app: AppHandle) {
+    pub fn toggle_peek(app: AppHandle, state: State<'_, AppState>) {
+        let capture_selection = if let Ok(lock) = state.settings.lock() {
+            lock.auto_capture_selection
+        } else {
+            true
+        };
+
         if let Some(window) = get_peek_window(&app) {
             if window.is_visible().unwrap_or(false) {
                 hide_peek(app);
             } else {
-                if let Some(text) = get_primary_selection() {
-                    let _ = window.emit("peek-highlighted-text", text);
+                if capture_selection {
+                    if let Some(text) = get_primary_selection() {
+                        let _ = window.emit("peek-highlighted-text", text);
+                    }
                 }
                 show_peek(app);
             }
@@ -172,9 +198,15 @@ mod commands {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(commands::AppState {
+            settings: std::sync::Mutex::new(commands::AppSettings {
+                auto_capture_selection: true,
+            }),
+        })
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            commands::toggle_peek(app.clone());
+            let state = app.state::<commands::AppState>();
+            commands::toggle_peek(app.clone(), state);
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -184,7 +216,8 @@ pub fn run() {
                     use tauri_plugin_global_shortcut::{ShortcutState, Modifiers, Code};
                     if event.state == ShortcutState::Pressed {
                         if shortcut.matches(Modifiers::ALT, Code::Space) {
-                            commands::toggle_peek(app.clone());
+                            let state = app.state::<commands::AppState>();
+                            commands::toggle_peek(app.clone(), state);
                         }
                     }
                 })
@@ -225,8 +258,10 @@ pub fn run() {
             commands::show_notification,
             commands::resize_peek,
             commands::read_clipboard_image,
+            commands::update_settings,
         ])
         .setup(|app| {
+
             // ── Register Alt+Space Shortcut ──
             #[cfg(desktop)]
             {
@@ -236,8 +271,6 @@ pub fn run() {
                     eprintln!("Failed to register Alt+Space global shortcut: {:?}", err);
                 }
             }
-
-            // ── System Tray ──
             let show_item = MenuItem::with_id(app, "show", "Show Peekaboo", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
