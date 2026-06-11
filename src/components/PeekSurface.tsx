@@ -225,7 +225,8 @@ export const PeekSurface: React.FC = () => {
 
     // Save user message
     try {
-      await saveMessage(generateId(), sessionId, 'user', query, hasAttachments);
+      const serializedContent = typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent);
+      await saveMessage(generateId(), sessionId, 'user', serializedContent, hasAttachments);
     } catch (err) {
       console.warn('Failed to save message:', err);
     }

@@ -8,6 +8,7 @@ const MarkdownWrapper = React.lazy(() => import('../lib/MarkdownWrapper'));
 
 interface Exchange {
   user: string;
+  images?: string[];
   assistant: string | null;
   index: number;
 }
@@ -113,8 +114,33 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
     for (let i = 0; i < visible.length; i++) {
       if (visible[i].role === 'user') {
         const hasAssistant = visible[i + 1] && visible[i + 1].role === 'assistant';
+        
+        // Extract images from content
+        const content = visible[i].content;
+        let images: string[] = [];
+        if (typeof content === 'string') {
+          const trimmed = content.trim();
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (Array.isArray(parsed)) {
+                images = parsed
+                  .filter((p: any) => p.type === 'image_url' && p.image_url?.url)
+                  .map((p: any) => p.image_url.url);
+              }
+            } catch {
+              // Ignore
+            }
+          }
+        } else if (Array.isArray(content)) {
+          images = content
+            .filter((p) => p.type === 'image_url' && p.image_url?.url)
+            .map((p) => p.image_url!.url);
+        }
+
         result.push({
           user: getTextContent(visible[i].content),
+          images: images.length > 0 ? images : undefined,
           assistant: hasAssistant ? getTextContent(visible[i + 1].content) : null,
           index: result.length,
         });
@@ -260,6 +286,43 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
                             >
                               ▤ {short}{isClickable ? '...' : ''}
                             </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {shown.images && shown.images.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, justifyContent: 'flex-end', width: '100%' }}>
+                        {shown.images.map((img, i) => {
+                          let base64 = img;
+                          let mediaType = 'image/png';
+                          const match = img.match(/^data:(image\/[^;]+);base64,(.+)$/);
+                          if (match) {
+                            mediaType = match[1];
+                            base64 = match[2];
+                          }
+                          return (
+                            <img 
+                              key={i} 
+                              src={img} 
+                              alt={`Attachment ${i + 1}`} 
+                              style={{ 
+                                maxWidth: '140px', 
+                                maxHeight: '100px', 
+                                borderRadius: '6px', 
+                                border: '1px solid var(--peek-border)', 
+                                objectFit: 'cover',
+                                cursor: 'pointer' 
+                              }} 
+                              onClick={() => {
+                                onClickAttachment?.({
+                                  id: `img-${i}-${Date.now()}`,
+                                  type: 'screenshot',
+                                  label: `Image ${i + 1}`,
+                                  content: base64,
+                                  mediaType: mediaType
+                                });
+                              }}
+                            />
                           );
                         })}
                       </div>

@@ -135,7 +135,14 @@ export class OllamaProvider implements Provider {
             if (showRes.ok) {
               const showData = await showRes.json();
               const families = showData.details?.families || [];
-              isVision = families.includes('clip');
+              const capabilities = showData.capabilities || [];
+              isVision = families.includes('clip') ||
+                         families.includes('mllama') ||
+                         families.includes('llava') ||
+                         capabilities.includes('vision') ||
+                         m.name.toLowerCase().includes('vision') ||
+                         m.name.toLowerCase().includes('-vl') ||
+                         m.name.toLowerCase().includes('llava');
             }
           } catch {
             // Ignore individual show errors
