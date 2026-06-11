@@ -284,7 +284,8 @@ html, body, #root {
 .peek-exchange-view {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .peek-exchange-card {
@@ -320,7 +321,6 @@ html, body, #root {
   padding: 6px 12px;
   border-radius: 14px 14px 4px 14px;
   max-width: 100%;
-  width: 100%;
   word-break: break-word;
   user-select: text;
   font-style: italic;
@@ -1027,6 +1027,17 @@ html, body, #root {
 @keyframes peek-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+@keyframes peek-dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.6);
+    opacity: 0.3;
+  }
 }
 
 /* ─── Reduced Motion ────────────────────────────────────────────────── */
