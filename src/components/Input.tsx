@@ -5,10 +5,11 @@ import { usePeekStore } from '../store/peek';
 interface InputProps {
   onSubmit: () => void;
   onAttachImage?: (base64: string, mediaType: string) => void;
+  onPasteReject?: (message: string) => void;
   onAbort?: () => void;
 }
 
-export const Input: React.FC<InputProps> = ({ onSubmit, onAttachImage, onAbort }) => {
+export const Input: React.FC<InputProps> = ({ onSubmit, onAttachImage, onPasteReject, onAbort }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { input, setInput, isStreaming, visible } = usePeekStore();
 
@@ -44,13 +45,15 @@ export const Input: React.FC<InputProps> = ({ onSubmit, onAttachImage, onAbort }
   };
 
   const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!onAttachImage) return;
-    
     try {
       const base64 = await invoke<string>('read_clipboard_image');
       if (base64) {
         e.preventDefault();
-        onAttachImage(base64, 'image/png');
+        if (onAttachImage) {
+          onAttachImage(base64, 'image/png');
+        } else if (onPasteReject) {
+          onPasteReject('Images are not supported by the active text-only model.');
+        }
       }
     } catch (err) {
       console.log('No image in clipboard or failed to read:', err);

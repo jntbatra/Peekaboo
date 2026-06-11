@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '../store/settings';
 import { historyVariants } from '../lib/motion';
 import { OllamaProvider } from '../providers/ollama';
+import { ModelInfo } from '../providers/types';
 
 export const Models: React.FC = () => {
   const { activeModel, setActiveModel, isModelsOpen, setModelsOpen, ollamaBaseUrl } = useSettingsStore();
-  const [availableModels, setAvailableModels] = React.useState<string[]>([]);
+  const [availableModels, setAvailableModels] = React.useState<ModelInfo[]>([]);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isSearchVisible, setIsSearchVisible] = React.useState(false);
@@ -14,7 +15,7 @@ export const Models: React.FC = () => {
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   const filteredModels = availableModels.filter(m => 
-    m.toLowerCase().includes(searchQuery.toLowerCase())
+    m.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Fetch models when opened
@@ -84,7 +85,7 @@ export const Models: React.FC = () => {
         e.preventDefault();
         e.stopPropagation();
         if (filteredModels.length > 0) {
-          setActiveModel(filteredModels[selectedIndex]);
+          setActiveModel(filteredModels[selectedIndex].name);
           setModelsOpen(false);
         }
       }
@@ -169,7 +170,7 @@ export const Models: React.FC = () => {
             ) : (
               filteredModels.map((model, idx) => (
                 <button
-                  key={model}
+                  key={model.name}
                   className="peek-history-item"
                   style={{
                     background: idx === selectedIndex ? 'var(--peek-hover)' : 'transparent',
@@ -177,17 +178,29 @@ export const Models: React.FC = () => {
                     flexDirection: 'row',
                     justifyContent: 'space-between',
                     alignItems: 'center',
+                    padding: '8px 12px',
                   }}
                   onClick={() => {
-                    setActiveModel(model);
+                    setActiveModel(model.name);
                     setModelsOpen(false);
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                 >
-                  <span className="peek-history-item-title">
-                    {model}
+                  <span className="peek-history-item-title" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {model.name}
+                      {model.isVision ? (
+                        <span style={{ fontSize: 10, padding: '2px 4px', background: 'rgba(76, 175, 80, 0.15)', color: '#4caf50', borderRadius: 4 }}>Vision</span>
+                      ) : (
+                        <span style={{ fontSize: 10, padding: '2px 4px', background: 'rgba(150, 150, 150, 0.15)', color: '#9e9e9e', borderRadius: 4 }}>Text</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--peek-text-muted)', marginTop: 4, display: 'flex', gap: 8, fontWeight: 'normal' }}>
+                      {model.parameterSize && <span>{model.parameterSize}</span>}
+                      {model.quantization && <span>{model.quantization}</span>}
+                    </div>
                   </span>
-                  {activeModel === model && <span style={{ fontSize: 12, color: '#4caf50' }}>Active</span>}
+                  {activeModel === model.name && <span style={{ fontSize: 12, color: '#4caf50' }}>Active</span>}
                 </button>
               ))
             )}

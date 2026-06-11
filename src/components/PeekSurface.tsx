@@ -53,11 +53,12 @@ export const PeekSurface: React.FC = () => {
   const { setSessions } = useHistoryStore();
   const { attachments, add: addAttachment, remove: removeAttachment, clear: clearAttachments, buildMessageContent } = useAttachments();
   const { run: runStream, abort: abortStream } = useStream();
-  const [showCleared, setShowCleared] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [viewingAttachment, setViewingAttachment] = useState<any | null>(null);
   const [hasActiveModalHeight, setHasActiveModalHeight] = useState(false);
   const viewingAttachmentRef = useRef<any | null>(null);
   const attachmentsRef = useRef<any[]>([]);
+  const [isVisionModel, setIsVisionModel] = useState(false);
 
   useEffect(() => {
     viewingAttachmentRef.current = viewingAttachment;
@@ -74,12 +75,16 @@ export const PeekSurface: React.FC = () => {
 
   const surfaceRef = useRef<HTMLDivElement>(null);
 
-  // ── Discover models on mount ──
   useEffect(() => {
     const discover = async () => {
       const models = await provider.models();
       if (models.length > 0 && !activeModel) {
-        setActiveModel(models[0]);
+        setActiveModel(models[0].name);
+      }
+
+      if (activeModel) {
+        const info = models.find(m => m.name === activeModel);
+        setIsVisionModel(info?.isVision ?? false);
       }
     };
     discover();
@@ -318,8 +323,8 @@ export const PeekSurface: React.FC = () => {
     abortStream();
     clear();
     clearAttachments();
-    setShowCleared(true);
-    setTimeout(() => setShowCleared(false), 2000);
+    setToast({ type: 'success', text: 'Cleared' });
+    setTimeout(() => setToast(null), 2000);
   }, [abortStream, clear, clearAttachments]);
 
 
@@ -407,7 +412,7 @@ export const PeekSurface: React.FC = () => {
               <Input
                 onSubmit={handleSubmit}
                 onAbort={abortStream}
-                onAttachImage={(base64, mediaType) => {
+                onAttachImage={isVisionModel ? (base64, mediaType) => {
                   // Determine a nice label based on type
                   const isPng = mediaType.includes('png');
                   addAttachment({
@@ -416,6 +421,10 @@ export const PeekSurface: React.FC = () => {
                     content: base64,
                     mediaType,
                   });
+                } : undefined}
+                onPasteReject={(message) => {
+                  setToast({ type: 'error', text: message });
+                  setTimeout(() => setToast(null), 3000);
                 }}
               />
 
@@ -443,19 +452,33 @@ export const PeekSurface: React.FC = () => {
                 </div>
                 <div className="peek-status-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <AnimatePresence>
-                    {showCleared && (
+                    {toast && (
                       <motion.span
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         className="peek-bg-indicator"
-                        style={{ color: '#4caf50', background: 'rgba(76, 175, 80, 0.1)' }}
+                        style={{ 
+                          color: toast.type === 'success' ? '#4caf50' : '#f44336', 
+                          background: toast.type === 'success' ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
-                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                          <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                        </svg>
-                        Cleared
+                        {toast.type === 'success' ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                          </svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                          </svg>
+                        )}
+                        {toast.text}
                       </motion.span>
                     )}
                   </AnimatePresence>

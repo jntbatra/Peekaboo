@@ -16,9 +16,17 @@ export interface StreamChunk {
   done: boolean;
 }
 
+export interface ModelInfo {
+  name: string;
+  isVision: boolean;
+  parameterSize?: string;
+  family?: string;
+  quantization?: string;
+}
+
 export interface Provider {
   id: string;
   name: string;
-  models: () => Promise<string[]>;
+  models: () => Promise<ModelInfo[]>;
   stream: (messages: Message[], model: string, signal?: AbortSignal) => AsyncIterable<StreamChunk>;
 }

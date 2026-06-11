@@ -1,6 +1,8 @@
-import type { Provider, StreamChunk, Message } from './types';
+import type { Provider, StreamChunk, Message, ModelInfo } from './types';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
+
+const metadataCache = new Map<string, { isVision: boolean; parameterSize?: string; family?: string; quantization?: string }>();
 
 export class OllamaProvider implements Provider {
   id = 'ollama';
@@ -96,12 +98,49 @@ export class OllamaProvider implements Provider {
     }
   }
 
-  async models(): Promise<string[]> {
+  async models(): Promise<ModelInfo[]> {
     try {
       const res = await fetch(`${this.baseUrl}/api/tags`);
       if (!res.ok) return [];
       const data = await res.json();
-      return data.models?.map((m: { name: string }) => m.name) ?? [];
+      
+      return await Promise.all(
+        (data.models || []).map(async (m: any) => {
+          if (metadataCache.has(m.name)) {
+            return { name: m.name, ...metadataCache.get(m.name)! };
+          }
+
+          let isVision = false;
+          const parameterSize = m.details?.parameter_size;
+          const family = m.details?.family;
+          const quantization = m.details?.quantization_level;
+
+          try {
+            const showRes = await fetch(`${this.baseUrl}/api/show`, {
+              method: 'POST',
+              body: JSON.stringify({ name: m.name }),
+              headers: { 'Content-Type': 'application/json' },
+            });
+            if (showRes.ok) {
+              const showData = await showRes.json();
+              const families = showData.details?.families || [];
+              isVision = families.includes('clip');
+            }
+          } catch {
+            // Ignore individual show errors
+          }
+
+          const metadata = {
+            isVision,
+            parameterSize,
+            family,
+            quantization,
+          };
+          metadataCache.set(m.name, metadata);
+
+          return { name: m.name, ...metadata };
+        })
+      );
     } catch {
       return [];
     }
