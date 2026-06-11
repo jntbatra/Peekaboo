@@ -25,6 +25,7 @@ import {
   getRecentSessions,
   getSessionMessages,
   searchMemories,
+  cleanOldSessions,
 } from '../db/database';
 
 function generateId(): string {
@@ -90,7 +91,7 @@ export const PeekSurface: React.FC = () => {
     discover();
   }, [provider, activeModel, setActiveModel]);
 
-  // ── Load history & memories on mount ──
+  // ── Load history & memories on mount + cleanup old sessions ──
   useEffect(() => {
     const loadHistoryAndMemories = async () => {
       try {
@@ -104,6 +105,13 @@ export const PeekSurface: React.FC = () => {
         usePeekStore.getState().setMemoryOverlay({ items: memories });
       } catch {
         // DB not ready yet
+      }
+      // Prune old sessions according to the configured retention period
+      try {
+        const { historyRetentionDays } = useSettingsStore.getState();
+        await cleanOldSessions(historyRetentionDays);
+      } catch {
+        // Non-critical — ignore
       }
     };
     loadHistoryAndMemories();

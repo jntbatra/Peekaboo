@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState, Suspense } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Message } from '../providers/types';
 import type { Attachment } from '../hooks/useAttachments';
+import { getTextContent, parseUserContent } from '../lib/messageUtils';
 
 const MarkdownWrapper = React.lazy(() => import('../lib/MarkdownWrapper'));
 
@@ -20,44 +21,7 @@ interface ExchangeViewProps {
   onClickAttachment?: (att: Attachment) => void;
 }
 
-function getTextContent(content: Message['content']): string {
-  if (typeof content === 'string') {
-    if (content.trim().startsWith('[') && content.trim().endsWith(']')) {
-      try {
-        const parsed = JSON.parse(content);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .filter((p: any) => p.type === 'text' && p.text)
-            .map((p: any) => p.text)
-            .join('');
-        }
-      } catch (e) {
-        // Not a JSON array, fall through
-      }
-    }
-    return content;
-  }
-  return content.filter((p) => p.type === 'text' && p.text).map((p) => p.text!).join('');
-}
-
-function parseUserContent(raw: string): { contexts: string[], prompt: string } {
-  const contexts: string[] = [];
-  let prompt = raw;
-  let startIndex = prompt.indexOf('<context>');
-  
-  while (startIndex !== -1) {
-    const endIndex = prompt.indexOf('</context>', startIndex + 9);
-    if (endIndex !== -1) {
-      contexts.push(prompt.substring(startIndex + 9, endIndex).trim());
-      prompt = prompt.substring(0, startIndex) + prompt.substring(endIndex + 10);
-      startIndex = prompt.indexOf('<context>');
-    } else {
-      break;
-    }
-  }
-  
-  return { contexts, prompt: prompt.trim() };
-}
+// getTextContent and parseUserContent imported from ../lib/messageUtils
 
 function CopyButton({ text, label = 'Copy', alignRight = false }: { text: string; label?: string; alignRight?: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -142,27 +106,33 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
   onExchangeChange,
   onClickAttachment,
 }) => {
-  // Build exchange pairs from messages (exclude system)
-  const exchanges: Exchange[] = [];
-  const visible = messages.filter((m) => m.role !== 'system');
-  for (let i = 0; i < visible.length; i++) {
-    if (visible[i].role === 'user') {
-      const hasAssistant = visible[i + 1] && visible[i + 1].role === 'assistant';
-      exchanges.push({
-        user: getTextContent(visible[i].content),
-        assistant: hasAssistant ? getTextContent(visible[i + 1].content) : null,
-        index: exchanges.length,
-      });
-      if (hasAssistant) i++;
+  // Build exchange pairs from messages — memoized so it doesn't rerun on every streaming token
+  const exchanges = useMemo<Exchange[]>(() => {
+    const result: Exchange[] = [];
+    const visible = messages.filter((m) => m.role !== 'system');
+    for (let i = 0; i < visible.length; i++) {
+      if (visible[i].role === 'user') {
+        const hasAssistant = visible[i + 1] && visible[i + 1].role === 'assistant';
+        result.push({
+          user: getTextContent(visible[i].content),
+          assistant: hasAssistant ? getTextContent(visible[i + 1].content) : null,
+          index: result.length,
+        });
+        if (hasAssistant) i++;
+      }
     }
-  }
+    return result;
+  }, [messages]);
 
-  // If streaming, the final exchange is currently live. Override its assistant text with the streaming content.
-  if (isStreaming && exchanges.length > 0) {
-    exchanges[exchanges.length - 1].assistant = streamingContent || null;
-  }
+  // Mutable streaming overlay — doesn't need to be in useMemo since it's ephemeral
+  const displayExchanges = useMemo<Exchange[]>(() => {
+    if (!isStreaming || exchanges.length === 0) return exchanges;
+    const copy = [...exchanges];
+    copy[copy.length - 1] = { ...copy[copy.length - 1], assistant: streamingContent || null };
+    return copy;
+  }, [exchanges, isStreaming, streamingContent]);
 
-  const total = exchanges.length;
+  const total = displayExchanges.length;
 
   const [currentIndex, setCurrentIndex] = useState(total > 0 ? total - 1 : 0);
   const [direction, setDirection] = useState(0);
@@ -182,11 +152,14 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
     onExchangeChange(currentIndex + 1, total);
   }, [currentIndex, total, onExchangeChange]);
 
-  const goTo = (idx: number, dir: number) => {
-    if (idx < 0 || idx >= total) return;
-    setDirection(dir);
-    setCurrentIndex(idx);
-  };
+  // useCallback prevents stale closure in the keyboard effect below
+  const goTo = useCallback((idx: number, dir: number) => {
+    setCurrentIndex((prev) => {
+      if (idx < 0 || idx >= total) return prev;
+      setDirection(dir);
+      return idx;
+    });
+  }, [total]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -197,11 +170,11 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [currentIndex, total]);
+  }, [currentIndex, goTo]);
 
   // Resolve which exchange to show
-  const shown = exchanges[currentIndex];
-  const isLive = isStreaming && currentIndex === exchanges.length - 1;
+  const shown = displayExchanges[currentIndex];
+  const isLive = isStreaming && currentIndex === displayExchanges.length - 1;
   const isLoading = isLive && !streamingContent;
 
   const isNavigating = useRef(false);

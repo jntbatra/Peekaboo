@@ -14,6 +14,7 @@ interface ShortcutHandlers {
 
 export function useShortcuts(handlers: ShortcutHandlers) {
   const { visible } = usePeekStore();
+  const { onSubmit, onClear, onEscape, onStop } = handlers;
 
   useEffect(() => {
     if (!visible) return;
@@ -24,28 +25,28 @@ export function useShortcuts(handlers: ShortcutHandlers) {
       // Enter → Submit (without Shift or Alt)
       if (e.key === 'Enter' && !e.shiftKey && !isMod) {
         e.preventDefault();
-        handlers.onSubmit();
+        onSubmit();
         return;
       }
 
       // Escape → Dismiss
       if (e.key === 'Escape') {
         e.preventDefault();
-        handlers.onEscape();
+        onEscape();
         return;
       }
 
       // Alt+K → Clear conversation
       if (isMod && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        handlers.onClear();
+        onClear();
         return;
       }
 
       // Alt+Q → Stop streaming
       if (isMod && e.key.toLowerCase() === 'q') {
         e.preventDefault();
-        handlers.onStop();
+        onStop();
         return;
       }
 
@@ -134,5 +135,5 @@ export function useShortcuts(handlers: ShortcutHandlers) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [visible, handlers]);
+  }, [visible, onSubmit, onClear, onEscape, onStop]);
 }

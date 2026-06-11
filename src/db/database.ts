@@ -118,13 +118,6 @@ export async function getSessionMessages(
   }));
 }
 
-export async function getLastUserMessage(): Promise<string | null> {
-  const d = await getDb();
-  const rows = await d.select<{ content: string }[]>(
-    "SELECT content FROM messages WHERE role = 'user' ORDER BY created_at DESC LIMIT 1"
-  );
-  return rows.length > 0 ? rows[0].content : null;
-}
 
 // ─── Cleanup ────────────────────────────────────────────────────────
 

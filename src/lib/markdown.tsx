@@ -53,7 +53,6 @@ export const markdownComponents: Components = {
     ),
 };
 
-// Code block with copy button and remember button
 function CopyableCodeBlock({
   lang,
   codeText,
@@ -68,10 +67,6 @@ function CopyableCodeBlock({
   const [copied, setCopied] = React.useState(false);
   const [remembered, setRemembered] = React.useState(false);
 
-  const isAlreadyRemembered = usePeekStore(
-    (state) => state.memoryOverlay.items.some(item => item.content.trim() === codeText.trim())
-  );
-
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(codeText).then(() => {
@@ -82,7 +77,16 @@ function CopyableCodeBlock({
 
   const handleRemember = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isAlreadyRemembered) return;
+    if (remembered) return;
+
+    // Check for duplicates at click-time, not at render-time, to avoid per-block store subscriptions
+    const items = usePeekStore.getState().memoryOverlay.items;
+    const alreadySaved = items.some(item => item.content.trim() === codeText.trim());
+    if (alreadySaved) {
+      setRemembered(true); // show visual feedback but do nothing
+      return;
+    }
+
     saveMemory(generateId(), codeText).then(() => {
       import('../db/database').then(({ searchMemories }) => {
         searchMemories('').then(memories => {
@@ -111,12 +115,12 @@ function CopyableCodeBlock({
           'button',
           {
             className: 'peek-code-copy-btn',
-            onClick: (isAlreadyRemembered || remembered) ? undefined : handleRemember,
-            title: isAlreadyRemembered ? 'Saved to memories' : 'Remember code snippet',
-            'aria-label': isAlreadyRemembered ? 'Saved to memories' : 'Remember code snippet',
-            style: isAlreadyRemembered ? { cursor: 'default', opacity: 0.8 } : undefined
+            onClick: remembered ? undefined : handleRemember,
+            title: remembered ? 'Saved to memories' : 'Remember code snippet',
+            'aria-label': remembered ? 'Saved to memories' : 'Remember code snippet',
+            style: remembered ? { cursor: 'default', opacity: 0.8 } : undefined
           },
-          (isAlreadyRemembered || remembered)
+          remembered
             ? React.createElement(
                 React.Fragment,
                 null,

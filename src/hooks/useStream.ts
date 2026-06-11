@@ -55,6 +55,12 @@ export function useStream() {
         setIsStreaming(false);
         onComplete?.(full);
       } catch (err) {
+        // Cancel any pending rAF before touching any state
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+
         // Clean up any running background tasks since the stream stopped
         const store = usePeekStore.getState();
         store.backgroundTasks.forEach((t) => {

@@ -2,7 +2,12 @@ import type { Provider, StreamChunk, Message, ModelInfo } from './types';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 
+// Per-model metadata cache: survives the lifetime of the app instance
 const metadataCache = new Map<string, { isVision: boolean; parameterSize?: string; family?: string; quantization?: string }>();
+
+// Full model-list TTL cache: keyed by baseUrl, invalidates after 60s
+const modelsListCache = new Map<string, { data: ModelInfo[]; fetchedAt: number }>();
+const MODELS_CACHE_TTL_MS = 60_000;
 
 export class OllamaProvider implements Provider {
   id = 'ollama';
@@ -99,12 +104,18 @@ export class OllamaProvider implements Provider {
   }
 
   async models(): Promise<ModelInfo[]> {
+    // Return cached list if within TTL
+    const cached = modelsListCache.get(this.baseUrl);
+    if (cached && Date.now() - cached.fetchedAt < MODELS_CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     try {
       const res = await fetch(`${this.baseUrl}/api/tags`);
       if (!res.ok) return [];
       const data = await res.json();
       
-      return await Promise.all(
+      const result = await Promise.all(
         (data.models || []).map(async (m: any) => {
           if (metadataCache.has(m.name)) {
             return { name: m.name, ...metadataCache.get(m.name)! };
@@ -130,17 +141,14 @@ export class OllamaProvider implements Provider {
             // Ignore individual show errors
           }
 
-          const metadata = {
-            isVision,
-            parameterSize,
-            family,
-            quantization,
-          };
+          const metadata = { isVision, parameterSize, family, quantization };
           metadataCache.set(m.name, metadata);
-
           return { name: m.name, ...metadata };
         })
       );
+
+      modelsListCache.set(this.baseUrl, { data: result, fetchedAt: Date.now() });
+      return result;
     } catch {
       return [];
     }

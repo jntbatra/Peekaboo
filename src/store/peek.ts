@@ -70,7 +70,14 @@ export const usePeekStore = create<PeekState>((set) => ({
 
   backgroundTasks: [],
   addBackgroundTask: (t) =>
-    set((s) => ({ backgroundTasks: [...s.backgroundTasks, t] })),
+    set((s) => {
+      // Auto-prune completed/errored tasks older than 60s to prevent unbounded growth
+      const now = Date.now();
+      const pruned = s.backgroundTasks.filter(
+        (task) => task.status === 'running' || now - task.startedAt < 60_000
+      );
+      return { backgroundTasks: [...pruned, t] };
+    }),
   updateBackgroundTask: (id, update) =>
     set((s) => ({
       backgroundTasks: s.backgroundTasks.map((t) =>

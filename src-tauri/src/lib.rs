@@ -3,7 +3,6 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     WebviewWindow,
-    LogicalPosition, LogicalSize,
 };
 
 // ─── Window Helper ───────────────────────────────────────────────────
@@ -86,7 +85,7 @@ mod commands {
         // Clear selection if we got one to avoid stale captures
         if selection.is_some() {
             let _ = Command::new("wl-copy").args(["-p", "-c"]).status();
-            let _ = Command::new("xclip").args(["-selection", "primary", "/dev/null"]).status();
+            let _ = Command::new("xclip").args(["-selection", "primary", "-i", "/dev/null"]).status();
         }
         selection
     }
