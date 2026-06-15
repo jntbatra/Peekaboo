@@ -92,27 +92,7 @@ export const Settings: React.FC = () => {
       userSelect: 'none',
       borderTop: '1px solid rgba(255,255,255,0.05)',
     }}>
-      {/* Title Bar Area */}
-      <div style={{
-        padding: '20px 24px',
-        borderBottom: '1px solid var(--peek-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, letterSpacing: '0.02em' }}>Settings</h2>
-        <button
-          onClick={() => {
-            import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) => {
-              getCurrentWebviewWindow().close();
-            });
-          }}
-          style={{ background: 'none', border: 'none', color: 'var(--peek-text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '4px 6px', borderRadius: 4 }}
-          onMouseOver={(e) => (e.currentTarget.style.color = 'var(--peek-text)')}
-          onMouseOut={(e) => (e.currentTarget.style.color = 'var(--peek-text-muted)')}
-          title="Close (Esc)"
-        >✕</button>
-      </div>
+
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
         
