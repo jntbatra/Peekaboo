@@ -306,6 +306,102 @@ mod commands {
     }
 }
 
+mod plugin_commands {
+    use tauri::{AppHandle, Manager};
+    use serde_json::Value;
+    use std::path::PathBuf;
+
+    fn get_plugins_dir(_app: &AppHandle) -> Option<PathBuf> {
+        let home = std::env::var("HOME").ok()?;
+        Some(PathBuf::from(home).join(".config").join("peekaboo").join("plugins"))
+    }
+
+    #[tauri::command]
+    pub fn discover_plugins(app: AppHandle) -> Result<Vec<Value>, String> {
+        let plugins_dir = get_plugins_dir(&app).ok_or("Could not resolve plugins directory")?;
+        
+        let mut plugins = Vec::new();
+        if !plugins_dir.exists() {
+            let _ = std::fs::create_dir_all(&plugins_dir);
+            return Ok(plugins);
+        }
+
+        if let Ok(entries) = std::fs::read_dir(plugins_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let toml_path = path.join("plugin.toml");
+                    if toml_path.exists() {
+                        if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
+                            if let Ok(value) = toml::from_str::<Value>(&toml_str) {
+                                plugins.push(value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(plugins)
+    }
+
+    #[tauri::command]
+    pub fn get_plugin_js(app: AppHandle, plugin_id: String) -> Result<String, String> {
+        let plugins_dir = get_plugins_dir(&app).ok_or("Could not resolve plugins directory")?;
+        
+        if let Ok(entries) = std::fs::read_dir(plugins_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let toml_path = path.join("plugin.toml");
+                    if toml_path.exists() {
+                        if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
+                            if let Ok(value) = toml::from_str::<Value>(&toml_str) {
+                                if let Some(plugin_block) = value.get("plugin") {
+                                    if let Some(id_val) = plugin_block.get("id") {
+                                        if id_val.as_str() == Some(&plugin_id) {
+                                            let js_path = path.join("dist").join("index.js");
+                                            return std::fs::read_to_string(js_path).map_err(|e| format!("Failed to read JS: {}", e));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Err("Plugin not found".into())
+    }
+
+    #[tauri::command]
+    pub fn plugin_read_file(path: String) -> Result<String, String> {
+        std::fs::read_to_string(path).map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    pub fn plugin_write_file(path: String, text: String) -> Result<(), String> {
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(path, text).map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    pub fn get_active_window() -> Result<serde_json::Value, String> {
+        Err("getActiveWindow not implemented natively yet".into())
+    }
+
+    #[tauri::command]
+    pub fn capture_region() -> Result<String, String> {
+        Err("captureRegion not implemented natively yet".into())
+    }
+
+    #[tauri::command]
+    pub fn type_text(_text: String) -> Result<(), String> {
+        Err("typeText not implemented natively yet".into())
+    }
+}
+
 // ─── Llama Server Process State ─────────────────────────────────────
 
 pub struct LlamaServer {
@@ -440,6 +536,13 @@ pub fn run() {
             commands::hide_setup_mode,
             commands::reload_app,
             commands::reset_and_show_setup,
+            plugin_commands::discover_plugins,
+            plugin_commands::get_plugin_js,
+            plugin_commands::plugin_read_file,
+            plugin_commands::plugin_write_file,
+            plugin_commands::get_active_window,
+            plugin_commands::capture_region,
+            plugin_commands::type_text,
             server_commands::launch_llama_server,
             server_commands::stop_llama_server,
             server_commands::get_server_status,

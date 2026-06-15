@@ -42,11 +42,9 @@ export function useStream() {
 
       try {
         for await (const chunk of provider.stream(messages, model, controller.signal)) {
-          full += chunk.delta;
+          full += chunk;
           // Batch DOM updates to animation frames — never update per-token
           scheduleUpdate();
-
-          if (chunk.done) break;
         }
 
         // Final flush

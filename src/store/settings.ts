@@ -43,12 +43,20 @@ interface SettingsState {
   isModelsOpen: boolean;
   systemPrompt: string;
   autoCaptureSelection: boolean;
+  openaiApiKey: string;
+  openaiBaseUrl: string;
+  anthropicApiKey: string;
+  geminiApiKey: string;
 
   setSetupCompleted: (v: boolean) => void;
   setActiveProvider: (v: string) => void;
   setActiveModel: (v: string) => void;
   setOllamaBaseUrl: (v: string) => void;
   setLlamaBaseUrl: (v: string) => void;
+  setOpenaiApiKey: (v: string) => void;
+  setOpenaiBaseUrl: (v: string) => void;
+  setAnthropicApiKey: (v: string) => void;
+  setGeminiApiKey: (v: string) => void;
   addLlamaProfile: (p: LlamaProfile) => void;
   updateLlamaProfile: (p: LlamaProfile) => void;
   deleteLlamaProfile: (id: string) => void;
@@ -72,12 +80,20 @@ export const useSettingsStore = create<SettingsState>()(
       isModelsOpen: false,
       systemPrompt: 'You are Peekaboo, a highly capable, concise, and helpful AI desktop assistant. Do not use conversational filler. Provide direct, accurate answers.',
       autoCaptureSelection: true,
+      openaiApiKey: '',
+      openaiBaseUrl: 'https://api.openai.com/v1',
+      anthropicApiKey: '',
+      geminiApiKey: '',
 
       setSetupCompleted: (v) => set({ setupCompleted: v }),
       setActiveProvider: (v) => set({ activeProvider: v }),
       setActiveModel: (v) => set({ activeModel: v }),
       setOllamaBaseUrl: (v) => set({ ollamaBaseUrl: v }),
       setLlamaBaseUrl: (v) => set({ llamaBaseUrl: v }),
+      setOpenaiApiKey: (v) => set({ openaiApiKey: v }),
+      setOpenaiBaseUrl: (v) => set({ openaiBaseUrl: v }),
+      setAnthropicApiKey: (v) => set({ anthropicApiKey: v }),
+      setGeminiApiKey: (v) => set({ geminiApiKey: v }),
       addLlamaProfile: (p) => set((s) => ({ llamaProfiles: [...s.llamaProfiles, p] })),
       updateLlamaProfile: (p) => set((s) => ({
         llamaProfiles: s.llamaProfiles.map((x) => x.id === p.id ? p : x),

@@ -4,10 +4,14 @@ import { useSettingsStore } from '../store/settings';
 import { historyVariants } from '../lib/motion';
 import { OllamaProvider } from '../providers/ollama';
 import { LlamaProvider } from '../providers/llama';
-import { ModelInfo } from '../providers/types';
+import { OpenAIProvider } from '../providers/openai';
+import { AnthropicProvider } from '../providers/anthropic';
+import { GeminiProvider } from '../providers/gemini';
+import { ModelPluginProvider } from '../providers/plugin';
+import { ModelInfo, Provider } from '../providers/types';
 
 export const Models: React.FC = () => {
-  const { activeModel, setActiveModel, isModelsOpen, setModelsOpen, activeProvider, ollamaBaseUrl, llamaBaseUrl } = useSettingsStore();
+  const { activeModel, setActiveModel, isModelsOpen, setModelsOpen, activeProvider, ollamaBaseUrl, llamaBaseUrl, openaiApiKey, openaiBaseUrl, anthropicApiKey, geminiApiKey } = useSettingsStore();
   const [availableModels, setAvailableModels] = React.useState<ModelInfo[]>([]);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -22,10 +26,18 @@ export const Models: React.FC = () => {
   // Fetch models when opened
   React.useEffect(() => {
     if (isModelsOpen) {
-      const provider = activeProvider === 'llama' ? new LlamaProvider(llamaBaseUrl) : new OllamaProvider(ollamaBaseUrl);
+      let provider: Provider;
+      switch (activeProvider) {
+        case 'llama': provider = new LlamaProvider(llamaBaseUrl); break;
+        case 'ollama': provider = new OllamaProvider(ollamaBaseUrl); break;
+        case 'openai': provider = new OpenAIProvider(openaiBaseUrl, openaiApiKey); break;
+        case 'anthropic': provider = new AnthropicProvider(anthropicApiKey); break;
+        case 'gemini': provider = new GeminiProvider(geminiApiKey); break;
+        default: provider = new ModelPluginProvider(activeProvider, activeProvider); break;
+      }
       provider.models().then(setAvailableModels);
     }
-  }, [isModelsOpen, activeProvider, ollamaBaseUrl, llamaBaseUrl]);
+  }, [isModelsOpen, activeProvider, ollamaBaseUrl, llamaBaseUrl, openaiApiKey, openaiBaseUrl, anthropicApiKey, geminiApiKey]);
 
   // Reset selection when opened
   React.useEffect(() => {

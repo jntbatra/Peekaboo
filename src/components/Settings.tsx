@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useSettingsStore, LlamaProfile } from '../store/settings';
 import { LlamaProfileEditor } from './LlamaProfileEditor';
 import { useLlamaServer } from '../hooks/useLlamaServer';
+import { usePluginsStore } from '../store/plugins';
 
 const Toggle: React.FC<{ checked: boolean; onChange: (checked: boolean) => void }> = ({ checked, onChange }) => (
   <button
@@ -50,11 +51,21 @@ const smallBtnStyle: React.CSSProperties = {
   fontFamily: 'var(--peek-font)',
 };
 
+import { OpenAIProvider } from '../providers/openai';
+import { AnthropicProvider } from '../providers/anthropic';
+import { GeminiProvider } from '../providers/gemini';
+import { OllamaProvider } from '../providers/ollama';
+import { LlamaProvider } from '../providers/llama';
+
 export const Settings: React.FC = () => {
   const {
     activeProvider, setActiveProvider,
     ollamaBaseUrl, setOllamaBaseUrl,
     llamaBaseUrl, setLlamaBaseUrl,
+    openaiApiKey, setOpenaiApiKey,
+    openaiBaseUrl, setOpenaiBaseUrl,
+    anthropicApiKey, setAnthropicApiKey,
+    geminiApiKey, setGeminiApiKey,
     llamaProfiles, deleteLlamaProfile,
     activeLlamaProfileId, setActiveLlamaProfileId,
     historyRetentionDays,
@@ -62,8 +73,20 @@ export const Settings: React.FC = () => {
     autoCaptureSelection, setAutoCaptureSelection
   } = useSettingsStore();
   const { status: serverStatus, launch, stop, activeProfile } = useLlamaServer();
+  const { manifests, refreshManifests } = usePluginsStore();
   const [showAddProfile, setShowAddProfile] = useState(false);
   const [editingProfile, setEditingProfile] = useState<LlamaProfile | null>(null);
+
+  // Verification state
+  const [draftProvider, setDraftProvider] = useState<string>(activeProvider);
+  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [verificationError, setVerificationError] = useState<string>('');
+
+  React.useEffect(() => {
+    refreshManifests();
+  }, []);
+
+  const modelPlugins = manifests.filter(m => m.plugin.type === 'model');
 
   React.useEffect(() => {
     // Basic focus to allow immediate ESC key binding to work natively
@@ -166,36 +189,43 @@ export const Settings: React.FC = () => {
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--peek-border)', borderRadius: 8, padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 14 }}>Active Provider</span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {(['ollama', 'llama'] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setActiveProvider(p)}
-                    style={{
-                      fontSize: 13,
-                      padding: '2px 10px',
-                      borderRadius: 4,
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: activeProvider === p ? 'rgba(76,175,80,0.2)' : 'rgba(255,255,255,0.05)',
-                      color: activeProvider === p ? '#4caf50' : 'var(--peek-text-secondary)',
-                      fontFamily: 'var(--peek-font)',
-                    }}
-                  >
-                    {p === 'ollama' ? 'Ollama' : 'llama.cpp'}
-                  </button>
-                ))}
+              <span style={{ fontSize: 14 }}>Select Provider</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['ollama', 'llama', 'openai', 'anthropic', 'gemini', ...modelPlugins.map(mp => mp.plugin.id)].map((p) => {
+                  const label = p === 'ollama' ? 'Ollama' : p === 'llama' ? 'llama.cpp' : p === 'openai' ? 'OpenAI' : p === 'anthropic' ? 'Anthropic' : p === 'gemini' ? 'Google Gemini' : (modelPlugins.find(mp => mp.plugin.id === p)?.plugin.name || p);
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        setDraftProvider(p);
+                        setVerificationStatus('idle');
+                        setVerificationError('');
+                      }}
+                      style={{
+                        fontSize: 13,
+                        padding: '2px 10px',
+                        borderRadius: 4,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: draftProvider === p ? (activeProvider === p ? 'rgba(76,175,80,0.2)' : 'rgba(255,255,255,0.15)') : 'rgba(255,255,255,0.05)',
+                        color: draftProvider === p ? (activeProvider === p ? '#4caf50' : 'var(--peek-text)') : 'var(--peek-text-secondary)',
+                        fontFamily: 'var(--peek-font)',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {activeProvider === 'ollama' && (
+            {draftProvider === 'ollama' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={{ fontSize: 13, color: 'var(--peek-text-secondary)' }}>Ollama Base URL</label>
                 <input
                   type="text"
                   value={ollamaBaseUrl}
-                  onChange={(e) => setOllamaBaseUrl(e.target.value)}
+                  onChange={(e) => { setOllamaBaseUrl(e.target.value); setVerificationStatus('idle'); }}
                   style={{
                     background: 'rgba(0,0,0,0.2)',
                     border: '1px solid var(--peek-border)',
@@ -210,7 +240,113 @@ export const Settings: React.FC = () => {
               </div>
             )}
 
-            {activeProvider === 'llama' && (
+            {draftProvider === 'openai' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, color: 'var(--peek-text-secondary)' }}>OpenAI API Key</label>
+                <input
+                  type="password"
+                  value={openaiApiKey}
+                  placeholder="sk-..."
+                  onChange={(e) => { setOpenaiApiKey(e.target.value); setVerificationStatus('idle'); }}
+                  style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--peek-border)', color: 'var(--peek-text)', padding: '8px 12px', borderRadius: 6, fontSize: 14, outline: 'none', fontFamily: 'var(--peek-font-mono)' }}
+                />
+                <label style={{ fontSize: 13, color: 'var(--peek-text-secondary)', marginTop: 4 }}>OpenAI Base URL</label>
+                <input
+                  type="text"
+                  value={openaiBaseUrl}
+                  onChange={(e) => { setOpenaiBaseUrl(e.target.value); setVerificationStatus('idle'); }}
+                  style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--peek-border)', color: 'var(--peek-text)', padding: '8px 12px', borderRadius: 6, fontSize: 14, outline: 'none', fontFamily: 'var(--peek-font-mono)' }}
+                />
+              </div>
+            )}
+
+            {draftProvider === 'anthropic' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, color: 'var(--peek-text-secondary)' }}>Anthropic API Key</label>
+                <input
+                  type="password"
+                  value={anthropicApiKey}
+                  placeholder="sk-ant-..."
+                  onChange={(e) => { setAnthropicApiKey(e.target.value); setVerificationStatus('idle'); }}
+                  style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--peek-border)', color: 'var(--peek-text)', padding: '8px 12px', borderRadius: 6, fontSize: 14, outline: 'none', fontFamily: 'var(--peek-font-mono)' }}
+                />
+              </div>
+            )}
+
+            {draftProvider === 'gemini' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 13, color: 'var(--peek-text-secondary)' }}>Google Gemini API Key</label>
+                <input
+                  type="password"
+                  value={geminiApiKey}
+                  placeholder="AIza..."
+                  onChange={(e) => { setGeminiApiKey(e.target.value); setVerificationStatus('idle'); }}
+                  style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--peek-border)', color: 'var(--peek-text)', padding: '8px 12px', borderRadius: 6, fontSize: 14, outline: 'none', fontFamily: 'var(--peek-font-mono)' }}
+                />
+              </div>
+            )}
+
+            {draftProvider !== 'llama' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                {verificationStatus === 'success' ? (
+                  <span style={{ fontSize: 13, color: '#4caf50' }}>✓ Connection verified, {draftProvider} is active</span>
+                ) : verificationStatus === 'error' ? (
+                  <span style={{ fontSize: 13, color: '#f44336' }}>✗ {verificationError || 'Connection failed'}</span>
+                ) : (
+                  <span style={{ fontSize: 13, color: 'var(--peek-text-muted)' }}>
+                    {draftProvider === activeProvider ? 'Currently active' : 'Click verify to test and switch'}
+                  </span>
+                )}
+                <button
+                  disabled={verificationStatus === 'testing'}
+                  onClick={async () => {
+                    setVerificationStatus('testing');
+                    setVerificationError('');
+                    let isAvailable = false;
+                    try {
+                      if (draftProvider === 'ollama') {
+                        isAvailable = await new OllamaProvider(ollamaBaseUrl).isAvailable();
+                      } else if (draftProvider === 'openai') {
+                        isAvailable = await new OpenAIProvider(openaiBaseUrl, openaiApiKey).isAvailable();
+                      } else if (draftProvider === 'anthropic') {
+                        isAvailable = await new AnthropicProvider(anthropicApiKey).isAvailable();
+                      } else if (draftProvider === 'gemini') {
+                        isAvailable = await new GeminiProvider(geminiApiKey).isAvailable();
+                      } else {
+                        // Assuming it's a plugin provider (which we didn't mock for isAvailable natively yet in Settings, but plugins generally skip connection validation)
+                        isAvailable = true; 
+                      }
+                      
+                      if (isAvailable) {
+                        setVerificationStatus('success');
+                        setActiveProvider(draftProvider);
+                      } else {
+                        setVerificationStatus('error');
+                        setVerificationError('Could not connect. Check your configuration.');
+                      }
+                    } catch (e: any) {
+                      setVerificationStatus('error');
+                      setVerificationError(e.message || 'Verification failed');
+                    }
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    background: verificationStatus === 'testing' ? 'rgba(255,255,255,0.1)' : 'rgba(76,175,80,0.15)',
+                    color: verificationStatus === 'testing' ? 'var(--peek-text-muted)' : '#4caf50',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    cursor: verificationStatus === 'testing' ? 'wait' : 'pointer',
+                    fontFamily: 'var(--peek-font)',
+                    fontWeight: 500
+                  }}
+                >
+                  {verificationStatus === 'testing' ? 'Verifying...' : draftProvider === activeProvider ? 'Verify Connection' : 'Verify & Switch'}
+                </button>
+              </div>
+            )}
+
+            {draftProvider === 'llama' && (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

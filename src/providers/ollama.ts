@@ -1,4 +1,4 @@
-import type { Provider, StreamChunk, Message, ModelInfo } from './types';
+import type { Provider, Message, ModelInfo } from './types';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 // Helper to route requests through Tauri's native Rust fetch client,
@@ -41,7 +41,7 @@ export class OllamaProvider implements Provider {
     messages: Message[],
     model: string,
     signal?: AbortSignal
-  ): AsyncGenerator<StreamChunk> {
+  ): AsyncGenerator<string> {
     const mappedMessages = messages.map((m) => {
       if (typeof m.content === 'string') {
         return { role: m.role, content: m.content };
@@ -97,10 +97,7 @@ export class OllamaProvider implements Provider {
         if (!trimmed) continue;
         try {
           const json = JSON.parse(trimmed);
-          yield {
-            delta: json.message?.content ?? '',
-            done: json.done ?? false,
-          };
+          yield json.message?.content ?? '';
         } catch {
           // Skip malformed lines — can happen during high-speed streaming
           console.warn('Peekaboo: skipped malformed Ollama chunk:', trimmed);
@@ -112,10 +109,7 @@ export class OllamaProvider implements Provider {
     if (buffer.trim()) {
       try {
         const json = JSON.parse(buffer.trim());
-        yield {
-          delta: json.message?.content ?? '',
-          done: json.done ?? false,
-        };
+        yield json.message?.content ?? '';
       } catch {
         // Final incomplete chunk — ignore
       }

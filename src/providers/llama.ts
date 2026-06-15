@@ -1,4 +1,4 @@
-import type { Provider, StreamChunk, Message, ModelInfo } from './types';
+import type { Provider, Message, ModelInfo } from './types';
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8080';
 
@@ -15,7 +15,7 @@ export class LlamaProvider implements Provider {
     messages: Message[],
     model: string,
     signal?: AbortSignal
-  ): AsyncGenerator<StreamChunk> {
+  ): AsyncGenerator<string> {
     const mappedMessages = messages.map((m) => {
       if (typeof m.content === 'string') {
         return { role: m.role, content: m.content };
@@ -59,14 +59,12 @@ export class LlamaProvider implements Provider {
         if (!trimmed || !trimmed.startsWith('data:')) continue;
         const data = trimmed.slice(5).trim();
         if (data === '[DONE]') {
-          yield { delta: '', done: true };
           return;
         }
         try {
           const json = JSON.parse(data);
           const delta = json.choices?.[0]?.delta?.content ?? '';
-          const isDone = json.choices?.[0]?.finish_reason != null;
-          yield { delta, done: isDone };
+          yield delta;
         } catch {
           console.warn('Peekaboo: skipped malformed llama chunk:', data);
         }

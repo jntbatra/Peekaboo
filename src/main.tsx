@@ -13,6 +13,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 import { invoke } from '@tauri-apps/api/core';
 import { useSettingsStore } from './store/settings';
+import { usePluginsStore } from './store/plugins';
 
 const App: React.FC = () => {
   const [windowLabel, setWindowLabel] = React.useState<string | null>(null);
@@ -27,6 +28,15 @@ const App: React.FC = () => {
       setWindowLabel('peekaboo');
     }
   }, []);
+
+  // ── Background Plugin Discovery ──
+  React.useEffect(() => {
+    if (windowLabel === 'peekaboo') {
+      usePluginsStore.getState().refreshManifests().catch(err => {
+        console.warn('Failed to discover plugins on startup:', err);
+      });
+    }
+  }, [windowLabel]);
 
   // ── Sync Settings to Rust Backend ──
   React.useEffect(() => {
