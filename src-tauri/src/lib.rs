@@ -209,6 +209,7 @@ pub fn run() {
             commands::toggle_peek(app.clone(), state);
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()

@@ -1,6 +1,25 @@
 import type { Provider, StreamChunk, Message, ModelInfo } from './types';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
+// Helper to route requests through Tauri's native Rust fetch client,
+// bypassing WebKitGTK CORS and mixed-content restrictions in production.
+async function secureFetch(input: string | URL, init?: any): Promise<Response> {
+  let urlStr = input.toString();
+  // Force IPv4 loopback to avoid reqwest IPv6 "Connection refused" issues on Linux
+  urlStr = urlStr.replace('http://localhost', 'http://127.0.0.1');
+
+  try {
+    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+    const tauriInit = { ...init };
+    if (tauriInit.signal) {
+      delete tauriInit.signal;
+      tauriInit.connectTimeout = 2000;
+    }
+    return await tauriFetch(urlStr, tauriInit);
+  } catch {
+    return await window.fetch(input, init);
+  }
+}
 
 // Per-model metadata cache: survives the lifetime of the app instance
 const metadataCache = new Map<string, { isVision: boolean; parameterSize?: string; family?: string; quantization?: string }>();
@@ -48,7 +67,7 @@ export class OllamaProvider implements Provider {
       };
     });
 
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
+    const res = await secureFetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
@@ -111,7 +130,7 @@ export class OllamaProvider implements Provider {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`);
+      const res = await secureFetch(`${this.baseUrl}/api/tags`);
       if (!res.ok) return [];
       const data = await res.json();
       
@@ -127,7 +146,7 @@ export class OllamaProvider implements Provider {
           const quantization = m.details?.quantization_level;
 
           try {
-            const showRes = await fetch(`${this.baseUrl}/api/show`, {
+            const showRes = await secureFetch(`${this.baseUrl}/api/show`, {
               method: 'POST',
               body: JSON.stringify({ name: m.name }),
               headers: { 'Content-Type': 'application/json' },
@@ -163,7 +182,7 @@ export class OllamaProvider implements Provider {
 
   async isAvailable(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`, {
+      const res = await secureFetch(`${this.baseUrl}/api/tags`, {
         signal: AbortSignal.timeout(2000),
       });
       return res.ok;
