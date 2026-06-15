@@ -337,17 +337,11 @@ export const PeekSurface: React.FC = () => {
   // ── Clear conversation ──
   const handleClear = useCallback(async () => {
     abortStream();
-    const sessionId = usePeekStore.getState().activeSessionId;
     clear();
     clearAttachments();
-    if (sessionId) {
-      await deleteSession(sessionId).catch(() => {});
-      const sessions = await getRecentSessions().catch(() => []);
-      setSessions(sessions);
-    }
     setToast({ type: 'success', text: 'New chat' });
     setTimeout(() => setToast(null), 2000);
-  }, [abortStream, clear, clearAttachments, setSessions]);
+  }, [abortStream, clear, clearAttachments]);
 
 
 
