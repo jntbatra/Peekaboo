@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useHistoryStore, type Session } from '../store/history';
+import { usePeekStore } from '../store/peek';
 import { historyVariants } from '../lib/motion';
 import { updateSessionTitle, deleteSession, getRecentSessions } from '../db/database';
 
@@ -22,6 +23,7 @@ function formatRelativeTime(timestamp: number): string {
 
 export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
   const { sessions, isOpen, setOpen, setSessions } = useHistoryStore();
+  const activeSessionId = usePeekStore((state) => state.activeSessionId);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -35,6 +37,13 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
   const filteredSessions = sessions.filter(s => 
     (s.title || 'Untitled').toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  // Bring active session to top
+  const activeSessionIndex = filteredSessions.findIndex(s => s.id === activeSessionId);
+  if (activeSessionIndex > 0) {
+    const [activeSession] = filteredSessions.splice(activeSessionIndex, 1);
+    filteredSessions.unshift(activeSession);
+  }
 
   // Reset selection when opened
   useEffect(() => {
@@ -93,6 +102,10 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
     e.stopPropagation();
     await deleteSession(session.id);
     await refreshSessions();
+    const { activeSessionId, clear } = usePeekStore.getState();
+    if (activeSessionId === session.id) {
+      clear();
+    }
   };
 
   useEffect(() => {
@@ -251,7 +264,20 @@ export const History: React.FC<HistoryProps> = ({ onSelectSession }) => {
                       </form>
                     ) : (
                       <>
-                        <span className="peek-history-item-title">
+                        <span className="peek-history-item-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {session.id === activeSessionId && (
+                            <span 
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                backgroundColor: 'var(--peek-accent)',
+                                display: 'inline-block',
+                                flexShrink: 0
+                              }} 
+                              title="Active chat"
+                            />
+                          )}
                           {session.title || 'Untitled'}
                         </span>
                         <div className="peek-history-item-actions">

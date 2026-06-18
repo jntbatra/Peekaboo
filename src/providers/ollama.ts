@@ -1,6 +1,25 @@
-import type { Provider, StreamChunk, Message, ModelInfo } from './types';
+import type { Provider, Message, ModelInfo } from './types';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
+// Helper to route requests through Tauri's native Rust fetch client,
+// bypassing WebKitGTK CORS and mixed-content restrictions in production.
+async function secureFetch(input: string | URL, init?: any): Promise<Response> {
+  let urlStr = input.toString();
+  // Force IPv4 loopback to avoid reqwest IPv6 "Connection refused" issues on Linux
+  urlStr = urlStr.replace('http://localhost', 'http://127.0.0.1');
+
+  try {
+    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+    const tauriInit = { ...init };
+    if (tauriInit.signal) {
+      delete tauriInit.signal;
+      tauriInit.connectTimeout = 2000;
+    }
+    return await tauriFetch(urlStr, tauriInit);
+  } catch {
+    return await window.fetch(input, init);
+  }
+}
 
 // Per-model metadata cache: survives the lifetime of the app instance
 const metadataCache = new Map<string, { isVision: boolean; parameterSize?: string; family?: string; quantization?: string }>();
@@ -22,7 +41,7 @@ export class OllamaProvider implements Provider {
     messages: Message[],
     model: string,
     signal?: AbortSignal
-  ): AsyncGenerator<StreamChunk> {
+  ): AsyncGenerator<string> {
     const mappedMessages = messages.map((m) => {
       if (typeof m.content === 'string') {
         return { role: m.role, content: m.content };
@@ -48,7 +67,7 @@ export class OllamaProvider implements Provider {
       };
     });
 
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
+    const res = await secureFetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal,
@@ -78,10 +97,7 @@ export class OllamaProvider implements Provider {
         if (!trimmed) continue;
         try {
           const json = JSON.parse(trimmed);
-          yield {
-            delta: json.message?.content ?? '',
-            done: json.done ?? false,
-          };
+          yield json.message?.content ?? '';
         } catch {
           // Skip malformed lines — can happen during high-speed streaming
           console.warn('Peekaboo: skipped malformed Ollama chunk:', trimmed);
@@ -93,10 +109,7 @@ export class OllamaProvider implements Provider {
     if (buffer.trim()) {
       try {
         const json = JSON.parse(buffer.trim());
-        yield {
-          delta: json.message?.content ?? '',
-          done: json.done ?? false,
-        };
+        yield json.message?.content ?? '';
       } catch {
         // Final incomplete chunk — ignore
       }
@@ -111,7 +124,7 @@ export class OllamaProvider implements Provider {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`);
+      const res = await secureFetch(`${this.baseUrl}/api/tags`);
       if (!res.ok) return [];
       const data = await res.json();
       
@@ -127,7 +140,7 @@ export class OllamaProvider implements Provider {
           const quantization = m.details?.quantization_level;
 
           try {
-            const showRes = await fetch(`${this.baseUrl}/api/show`, {
+            const showRes = await secureFetch(`${this.baseUrl}/api/show`, {
               method: 'POST',
               body: JSON.stringify({ name: m.name }),
               headers: { 'Content-Type': 'application/json' },
@@ -135,7 +148,14 @@ export class OllamaProvider implements Provider {
             if (showRes.ok) {
               const showData = await showRes.json();
               const families = showData.details?.families || [];
-              isVision = families.includes('clip');
+              const capabilities = showData.capabilities || [];
+              isVision = families.includes('clip') ||
+                         families.includes('mllama') ||
+                         families.includes('llava') ||
+                         capabilities.includes('vision') ||
+                         m.name.toLowerCase().includes('vision') ||
+                         m.name.toLowerCase().includes('-vl') ||
+                         m.name.toLowerCase().includes('llava');
             }
           } catch {
             // Ignore individual show errors
@@ -156,7 +176,7 @@ export class OllamaProvider implements Provider {
 
   async isAvailable(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`, {
+      const res = await secureFetch(`${this.baseUrl}/api/tags`, {
         signal: AbortSignal.timeout(2000),
       });
       return res.ok;

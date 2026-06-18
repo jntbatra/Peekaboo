@@ -48,7 +48,16 @@ export const markdownComponents: Components = {
   table: ({ children, ...props }) =>
     React.createElement(
       'div',
-      { style: { overflowX: 'auto', margin: '0.75em 0' } },
+      { 
+        className: 'peek-table-wrapper',
+        style: { 
+          overflowX: 'auto', 
+          margin: '0.85em 0', 
+          width: '100%', 
+          maxWidth: '100%', 
+          display: 'block' 
+        } 
+      },
       React.createElement('table', props, children)
     ),
 };

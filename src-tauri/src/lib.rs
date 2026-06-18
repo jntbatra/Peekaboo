@@ -28,6 +28,7 @@ mod commands {
     #[derive(Default, serde::Deserialize, Clone)]
     pub struct AppSettings {
         pub auto_capture_selection: bool,
+        pub setup_completed: bool,
     }
 
     pub struct AppState {
@@ -73,22 +74,12 @@ mod commands {
     }
 
     fn get_primary_selection() -> Option<String> {
-        use std::process::Command;
-        let mut selection = None;
-        // Try Wayland primary selection first
-        if let Ok(output) = Command::new("wl-paste").arg("-p").output() {
-            if output.status.success() {
-                if let Ok(text) = String::from_utf8(output.stdout) {
-                    let trimmed = text.trim();
-                    if !trimmed.is_empty() {
-                        selection = Some(trimmed.to_string());
-                    }
-                }
-            }
-        }
-        // Fallback to X11 primary selection
-        if selection.is_none() {
-            if let Ok(output) = Command::new("xclip").args(["-o", "-selection", "primary"]).output() {
+        #[cfg(target_os = "linux")]
+        {
+            use std::process::Command;
+            let mut selection = None;
+            // Try Wayland primary selection first
+            if let Ok(output) = Command::new("wl-paste").arg("-p").output() {
                 if output.status.success() {
                     if let Ok(text) = String::from_utf8(output.stdout) {
                         let trimmed = text.trim();
@@ -98,23 +89,70 @@ mod commands {
                     }
                 }
             }
+            // Fallback to X11 primary selection
+            if selection.is_none() {
+                if let Ok(output) = Command::new("xclip").args(["-o", "-selection", "primary"]).output() {
+                    if output.status.success() {
+                        if let Ok(text) = String::from_utf8(output.stdout) {
+                            let trimmed = text.trim();
+                            if !trimmed.is_empty() {
+                                selection = Some(trimmed.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            // Clear selection if we got one to avoid stale captures
+            if selection.is_some() {
+                let _ = Command::new("wl-copy").args(["-p", "-c"]).status();
+                let _ = Command::new("xclip").args(["-selection", "primary", "-i", "/dev/null"]).status();
+            }
+            selection
         }
 
-        // Clear selection if we got one to avoid stale captures
-        if selection.is_some() {
-            let _ = Command::new("wl-copy").args(["-p", "-c"]).status();
-            let _ = Command::new("xclip").args(["-selection", "primary", "-i", "/dev/null"]).status();
+        // Windows/macOS: read text from regular clipboard
+        #[cfg(not(target_os = "linux"))]
+        {
+            use arboard::Clipboard;
+            if let Ok(mut cb) = Clipboard::new() {
+                if let Ok(text) = cb.get_text() {
+                    let trimmed = text.trim().to_string();
+                    if !trimmed.is_empty() {
+                        return Some(trimmed);
+                    }
+                }
+            }
+            None
         }
-        selection
     }
 
     #[tauri::command]
     pub fn toggle_peek(app: AppHandle, state: State<'_, AppState>) {
-        let capture_selection = if let Ok(lock) = state.settings.lock() {
-            lock.auto_capture_selection
+        let (capture_selection, setup_completed) = if let Ok(lock) = state.settings.lock() {
+            (lock.auto_capture_selection, lock.setup_completed)
         } else {
-            true
+            (true, true)
         };
+
+        // If setup not done, shortcut opens setup window instead
+        if !setup_completed {
+            use tauri::{Manager, WebviewUrl};
+            if let Some(setup) = app.get_webview_window("setup") {
+                let _ = setup.show();
+                let _ = setup.set_focus();
+            } else {
+                // Window was closed by user — recreate it
+                let _ = tauri::WebviewWindowBuilder::new(
+                    &app, "setup", WebviewUrl::App("index.html".into())
+                )
+                .title("Welcome to Peekaboo")
+                .inner_size(820.0, 720.0)
+                .resizable(true)
+                .center()
+                .build();
+            }
+            return;
+        }
 
         if let Some(window) = get_peek_window(&app) {
             if window.is_visible().unwrap_or(false) {
@@ -149,6 +187,23 @@ mod commands {
     }
 
     #[tauri::command]
+    pub fn show_setup_mode(app: AppHandle) {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("setup") {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+
+    #[tauri::command]
+    pub fn hide_setup_mode(app: AppHandle) {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("setup") {
+            let _ = window.hide();
+        }
+    }
+
+    #[tauri::command]
     pub fn resize_peek(app: AppHandle, width: f64, height: f64) {
         if let Some(window) = get_peek_window(&app) {
             if let Ok(pos) = window.outer_position() {
@@ -157,6 +212,53 @@ mod commands {
             } else {
                 let _ = window.set_size(LogicalSize::new(width, height));
             }
+        }
+    }
+
+    #[tauri::command]
+    pub fn resize_and_center(app: AppHandle, width: f64, height: f64) {
+        if let Some(window) = get_peek_window(&app) {
+            let _ = window.set_size(LogicalSize::new(width, height));
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let size = monitor.size();
+                let scale = monitor.scale_factor();
+                let logical_w = size.width as f64 / scale;
+                let logical_h = size.height as f64 / scale;
+                let x = (logical_w - width) / 2.0;
+                let y = (logical_h - height) / 2.0;
+                let _ = window.set_position(LogicalPosition::new(x, y));
+            }
+        }
+    }
+
+    #[tauri::command]
+    pub fn reload_app(app: AppHandle) {
+        if let Some(window) = get_peek_window(&app) {
+            let _ = window.eval("window.location.reload()");
+        }
+    }
+
+    #[tauri::command]
+    pub fn reset_and_show_setup(app: AppHandle) {
+        use tauri::{Manager, WebviewUrl};
+        if let Some(peek) = get_peek_window(&app) {
+            let _ = peek.eval("window.location.reload()");
+        }
+        if let Some(setup) = app.get_webview_window("setup") {
+            // Reload so the setup component resets to step 1 with cleared state
+            let _ = setup.eval("window.location.reload()");
+            let _ = setup.show();
+            let _ = setup.set_focus();
+        } else {
+            // Window was destroyed (shouldn't happen with hide() now, but fallback)
+            let _ = tauri::WebviewWindowBuilder::new(
+                &app, "setup", WebviewUrl::App("index.html".into()),
+            )
+            .title("Welcome to Peekaboo")
+            .inner_size(820.0, 720.0)
+            .resizable(true)
+            .center()
+            .build();
         }
     }
 
@@ -191,6 +293,168 @@ mod commands {
             
         Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
     }
+
+    #[tauri::command]
+    pub async fn pick_file(title: String, filter_name: String, extensions: Vec<String>) -> Option<String> {
+        let ext_refs: Vec<&str> = extensions.iter().map(|s| s.as_str()).collect();
+        rfd::AsyncFileDialog::new()
+            .set_title(&title)
+            .add_filter(&filter_name, &ext_refs)
+            .pick_file()
+            .await
+            .map(|f| f.path().to_string_lossy().to_string())
+    }
+}
+
+mod plugin_commands {
+    use tauri::{AppHandle, Manager};
+    use serde_json::Value;
+    use std::path::PathBuf;
+
+    fn get_plugins_dir(_app: &AppHandle) -> Option<PathBuf> {
+        let home = std::env::var("HOME").ok()?;
+        Some(PathBuf::from(home).join(".config").join("peekaboo").join("plugins"))
+    }
+
+    #[tauri::command]
+    pub fn discover_plugins(app: AppHandle) -> Result<Vec<Value>, String> {
+        let plugins_dir = get_plugins_dir(&app).ok_or("Could not resolve plugins directory")?;
+        
+        let mut plugins = Vec::new();
+        if !plugins_dir.exists() {
+            let _ = std::fs::create_dir_all(&plugins_dir);
+            return Ok(plugins);
+        }
+
+        if let Ok(entries) = std::fs::read_dir(plugins_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let toml_path = path.join("plugin.toml");
+                    if toml_path.exists() {
+                        if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
+                            if let Ok(value) = toml::from_str::<Value>(&toml_str) {
+                                plugins.push(value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(plugins)
+    }
+
+    #[tauri::command]
+    pub fn get_plugin_js(app: AppHandle, plugin_id: String) -> Result<String, String> {
+        let plugins_dir = get_plugins_dir(&app).ok_or("Could not resolve plugins directory")?;
+        
+        if let Ok(entries) = std::fs::read_dir(plugins_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let toml_path = path.join("plugin.toml");
+                    if toml_path.exists() {
+                        if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
+                            if let Ok(value) = toml::from_str::<Value>(&toml_str) {
+                                if let Some(plugin_block) = value.get("plugin") {
+                                    if let Some(id_val) = plugin_block.get("id") {
+                                        if id_val.as_str() == Some(&plugin_id) {
+                                            let js_path = path.join("dist").join("index.js");
+                                            return std::fs::read_to_string(js_path).map_err(|e| format!("Failed to read JS: {}", e));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Err("Plugin not found".into())
+    }
+
+    #[tauri::command]
+    pub fn plugin_read_file(path: String) -> Result<String, String> {
+        std::fs::read_to_string(path).map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    pub fn plugin_write_file(path: String, text: String) -> Result<(), String> {
+        if let Some(parent) = std::path::Path::new(&path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(path, text).map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    pub fn get_active_window() -> Result<serde_json::Value, String> {
+        Err("getActiveWindow not implemented natively yet".into())
+    }
+
+    #[tauri::command]
+    pub fn capture_region() -> Result<String, String> {
+        Err("captureRegion not implemented natively yet".into())
+    }
+
+    #[tauri::command]
+    pub fn type_text(_text: String) -> Result<(), String> {
+        Err("typeText not implemented natively yet".into())
+    }
+}
+
+// ─── Llama Server Process State ─────────────────────────────────────
+
+pub struct LlamaServer {
+    child: std::sync::Mutex<Option<std::process::Child>>,
+}
+
+mod server_commands {
+    use tauri::State;
+    use super::LlamaServer;
+    use std::process::Command;
+
+    #[tauri::command]
+    pub fn launch_llama_server(
+        state: State<'_, LlamaServer>,
+        binary_path: String,
+        args: Vec<String>,
+    ) -> Result<(), String> {
+        let mut lock = state.child.lock().map_err(|e| e.to_string())?;
+        if let Some(ref mut child) = *lock {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        let child = Command::new(&binary_path)
+            .args(&args)
+            .spawn()
+            .map_err(|e| format!("Failed to launch llama server: {}", e))?;
+        *lock = Some(child);
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub fn stop_llama_server(state: State<'_, LlamaServer>) -> Result<(), String> {
+        let mut lock = state.child.lock().map_err(|e| e.to_string())?;
+        if let Some(ref mut child) = *lock {
+            let _ = child.kill();
+            let _ = child.wait();
+            *lock = None;
+        }
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub fn get_server_status(state: State<'_, LlamaServer>) -> bool {
+        if let Ok(mut lock) = state.child.lock() {
+            if let Some(ref mut child) = *lock {
+                match child.try_wait() {
+                    Ok(None) => return true,
+                    _ => { *lock = None; }
+                }
+            }
+        }
+        false
+    }
 }
 
 // ─── App Bootstrap ──────────────────────────────────────────────────
@@ -201,7 +465,11 @@ pub fn run() {
         .manage(commands::AppState {
             settings: std::sync::Mutex::new(commands::AppSettings {
                 auto_capture_selection: true,
+                setup_completed: false,
             }),
+        })
+        .manage(LlamaServer {
+            child: std::sync::Mutex::new(None),
         })
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -209,13 +477,16 @@ pub fn run() {
             commands::toggle_peek(app.clone(), state);
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     use tauri_plugin_global_shortcut::{ShortcutState, Modifiers, Code};
                     if event.state == ShortcutState::Pressed {
-                        if shortcut.matches(Modifiers::ALT, Code::Space) {
+                        let triggered = shortcut.matches(Modifiers::ALT, Code::Space)
+                            || shortcut.matches(Modifiers::CONTROL, Code::Space);
+                        if triggered {
                             let state = app.state::<commands::AppState>();
                             commands::toggle_peek(app.clone(), state);
                         }
@@ -257,19 +528,38 @@ pub fn run() {
             commands::open_settings,
             commands::show_notification,
             commands::resize_peek,
+            commands::resize_and_center,
             commands::read_clipboard_image,
             commands::update_settings,
+            commands::pick_file,
+            commands::show_setup_mode,
+            commands::hide_setup_mode,
+            commands::reload_app,
+            commands::reset_and_show_setup,
+            plugin_commands::discover_plugins,
+            plugin_commands::get_plugin_js,
+            plugin_commands::plugin_read_file,
+            plugin_commands::plugin_write_file,
+            plugin_commands::get_active_window,
+            plugin_commands::capture_region,
+            plugin_commands::type_text,
+            server_commands::launch_llama_server,
+            server_commands::stop_llama_server,
+            server_commands::get_server_status,
         ])
         .setup(|app| {
 
-            // ── Register Alt+Space Shortcut ──
+            // ── Register Global Shortcuts ──
             #[cfg(desktop)]
             {
                 use tauri_plugin_global_shortcut::{Shortcut, Modifiers, Code, GlobalShortcutExt};
+                let ctrl_space = Shortcut::new(Some(Modifiers::CONTROL), Code::Space);
                 let alt_space = Shortcut::new(Some(Modifiers::ALT), Code::Space);
-                if let Err(err) = app.global_shortcut().register(alt_space) {
-                    eprintln!("Failed to register Alt+Space global shortcut: {:?}", err);
+                if let Err(err) = app.global_shortcut().register(ctrl_space) {
+                    eprintln!("Failed to register Ctrl+Space: {:?}", err);
                 }
+                // Also register Alt+Space; may fail on Windows if system-reserved
+                let _ = app.global_shortcut().register(alt_space);
             }
             let show_item = MenuItem::with_id(app, "show", "Show Peekaboo", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
@@ -288,6 +578,22 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // ── Pre-create Setup window (hidden) — created from Rust so IPC works ──
+            {
+                use tauri::WebviewUrl;
+                let _ = tauri::WebviewWindowBuilder::new(
+                    app,
+                    "setup",
+                    WebviewUrl::App("index.html".into()),
+                )
+                .title("Welcome to Peekaboo")
+                .inner_size(820.0, 720.0)
+                .resizable(true)
+                .center()
+                .visible(false)
+                .build();
+            }
 
             // ── Focus Loss → Hide ──
             let app_handle = app.handle().clone();

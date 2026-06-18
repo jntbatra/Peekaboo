@@ -57,7 +57,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   width: 660px;
-  max-height: 500px;
+  max-height: 518px;
   background: var(--peek-bg);
   border-radius: var(--peek-radius);
   box-shadow: var(--peek-shadow);
@@ -284,7 +284,8 @@ html, body, #root {
 .peek-exchange-view {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .peek-exchange-card {
@@ -293,7 +294,9 @@ html, body, #root {
   flex-direction: column;
   gap: 10px;
   max-height: 380px;
+  max-width: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
@@ -320,7 +323,6 @@ html, body, #root {
   padding: 6px 12px;
   border-radius: 14px 14px 4px 14px;
   max-width: 100%;
-  width: 100%;
   word-break: break-word;
   user-select: text;
   font-style: italic;
@@ -334,7 +336,22 @@ html, body, #root {
   color: var(--peek-text);
   user-select: text;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  overflow-x: auto;
+  overflow-wrap: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+.peek-exchange-assistant::-webkit-scrollbar {
+  height: 4px;
+}
+.peek-exchange-assistant::-webkit-scrollbar-track {
+  background: transparent;
+}
+.peek-exchange-assistant::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
 }
 
 /* Markdown in exchange */
@@ -356,7 +373,31 @@ html, body, #root {
   color: var(--peek-text-secondary);
   margin: 0.75em 0;
 }
-.peek-exchange-assistant table { width: 100%; border-collapse: collapse; margin: 0.75em 0; font-size: 13px; }
+.peek-table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+.peek-table-wrapper::-webkit-scrollbar {
+  height: 4px;
+}
+.peek-table-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+.peek-table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+.peek-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.peek-exchange-assistant table { 
+  width: 100%; 
+  border-collapse: collapse; 
+  margin: 0; 
+  font-size: 13px; 
+  table-layout: auto;
+}
 .peek-exchange-assistant th, .peek-exchange-assistant td { padding: 6px 10px; border: 1px solid var(--peek-border); }
 .peek-exchange-assistant th { background: rgba(255,255,255,0.04); font-weight: 600; }
 
@@ -1027,6 +1068,17 @@ html, body, #root {
 @keyframes peek-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+@keyframes peek-dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.6);
+    opacity: 0.3;
+  }
 }
 
 /* ─── Reduced Motion ────────────────────────────────────────────────── */

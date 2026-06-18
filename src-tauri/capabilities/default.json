@@ -18,6 +18,13 @@
     "sql:allow-execute",
     "sql:allow-select",
     "sql:allow-close",
-    "clipboard-manager:default"
+    "clipboard-manager:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://127.0.0.1:*" },
+        { "url": "http://localhost:*" }
+      ]
+    }
   ]
 }

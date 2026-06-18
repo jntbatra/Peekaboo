@@ -16,7 +16,15 @@ import { useHistoryStore, type Session } from '../store/history';
 import { useStream } from '../hooks/useStream';
 import { useShortcuts } from '../hooks/useShortcuts';
 import { useAttachments } from '../hooks/useAttachments';
+import { registry } from '../lib/plugins/registry';
+import { usePluginsStore } from '../store/plugins';
+import { useLlamaServer } from '../hooks/useLlamaServer';
 import { OllamaProvider } from '../providers/ollama';
+import { LlamaProvider } from '../providers/llama';
+import { OpenAIProvider } from '../providers/openai';
+import { AnthropicProvider } from '../providers/anthropic';
+import { GeminiProvider } from '../providers/gemini';
+import { ModelPluginProvider } from '../providers/plugin';
 import { peekVariants } from '../lib/motion';
 import {
   createSession,
@@ -26,6 +34,7 @@ import {
   getSessionMessages,
   searchMemories,
   cleanOldSessions,
+  deleteSession,
 } from '../db/database';
 
 function generateId(): string {
@@ -50,7 +59,15 @@ export const PeekSurface: React.FC = () => {
     clear,
   } = usePeekStore();
 
-  const { activeModel, setActiveModel, ollamaBaseUrl } = useSettingsStore();
+  const { 
+    activeModel, setActiveModel, 
+    activeProvider,
+    ollamaBaseUrl, llamaBaseUrl,
+    openaiApiKey, openaiBaseUrl,
+    anthropicApiKey, geminiApiKey,
+    historyRetentionDays, setModelsOpen, systemPrompt, setupCompleted
+  } = useSettingsStore();
+  const { status: serverStatus } = useLlamaServer();
   const { setSessions } = useHistoryStore();
   const { attachments, add: addAttachment, remove: removeAttachment, clear: clearAttachments, buildMessageContent } = useAttachments();
   const { run: runStream, abort: abortStream } = useStream();
@@ -60,6 +77,7 @@ export const PeekSurface: React.FC = () => {
   const viewingAttachmentRef = useRef<any | null>(null);
   const attachmentsRef = useRef<any[]>([]);
   const [isVisionModel, setIsVisionModel] = useState(false);
+  const { enabledInputPlugins, enabledOutputPlugins } = usePluginsStore();
 
   useEffect(() => {
     viewingAttachmentRef.current = viewingAttachment;
@@ -69,27 +87,42 @@ export const PeekSurface: React.FC = () => {
     attachmentsRef.current = attachments;
   }, [attachments]);
 
-  const provider = useMemo(
-    () => new OllamaProvider(ollamaBaseUrl),
-    [ollamaBaseUrl]
-  );
+  const provider = useMemo(() => {
+    switch (activeProvider) {
+      case 'llama': return new LlamaProvider(llamaBaseUrl);
+      case 'ollama': return new OllamaProvider(ollamaBaseUrl);
+      case 'openai': return new OpenAIProvider(openaiBaseUrl, openaiApiKey);
+      case 'anthropic': return new AnthropicProvider(anthropicApiKey);
+      case 'gemini': return new GeminiProvider(geminiApiKey);
+      default: return new ModelPluginProvider(activeProvider, activeProvider);
+    }
+  }, [activeProvider, ollamaBaseUrl, llamaBaseUrl, openaiApiKey, openaiBaseUrl, anthropicApiKey, geminiApiKey]);
 
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let mounted = true;
     const discover = async () => {
-      const models = await provider.models();
-      if (models.length > 0 && !activeModel) {
-        setActiveModel(models[0].name);
-      }
-
-      if (activeModel) {
-        const info = models.find(m => m.name === activeModel);
-        setIsVisionModel(info?.isVision ?? false);
+      try {
+        const models = await provider.models();
+        if (!mounted) return;
+        
+        const modelNames = models.map(m => m.name);
+        if (models.length > 0 && (!activeModel || !modelNames.includes(activeModel))) {
+          setActiveModel(models[0].name);
+        } else if (activeModel) {
+          const info = models.find(m => m.name === activeModel);
+          setIsVisionModel(info?.isVision ?? false);
+        }
+      } catch (e) {
+        console.warn('Failed to fetch provider models:', e);
       }
     };
     discover();
-  }, [provider, activeModel, setActiveModel]);
+    return () => {
+      mounted = false;
+    };
+  }, [provider, activeModel, setActiveModel, serverStatus]);
 
   // ── Load history & memories on mount + cleanup old sessions ──
   useEffect(() => {
@@ -120,6 +153,24 @@ export const PeekSurface: React.FC = () => {
 
   // Global shortcut registration is handled natively in Rust (lib.rs)
   // to avoid frontend loading lag or permission scope overhead.
+
+  // ── Run Input Plugins on Open ──
+  useEffect(() => {
+    if (visible) {
+      registry.runInputPlugins(enabledInputPlugins).then(fragments => {
+        fragments.forEach(f => {
+          if (!attachmentsRef.current.some(a => a.content === f.content)) {
+            addAttachment({
+              type: 'plugin',
+              label: `📎 ${f.id}`,
+              content: f.content,
+              mediaType: 'text/plain'
+            });
+          }
+        });
+      });
+    }
+  }, [visible, enabledInputPlugins, addAttachment]);
 
   // ── Listen for visibility events from Rust ──
   useEffect(() => {
@@ -171,7 +222,7 @@ export const PeekSurface: React.FC = () => {
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const height = Math.min(Math.max(entry.contentRect.height + 16, 80), 520);
+        const height = Math.min(Math.max(entry.contentRect.height + 2, 80), 520);
         invoke('resize_peek', { width: 660, height });
       }
     });
@@ -200,7 +251,11 @@ export const PeekSurface: React.FC = () => {
     const query = input.trim();
     if (!query) return;
     
-    if (!activeModel) return;
+    if (!activeModel) {
+      setToast({ type: 'error', text: 'No model selected — check Settings or wait for server' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
 
     const messageContent = buildMessageContent(query);
     const hasAttachments = attachments.length > 0;
@@ -225,7 +280,8 @@ export const PeekSurface: React.FC = () => {
 
     // Save user message
     try {
-      await saveMessage(generateId(), sessionId, 'user', query, hasAttachments);
+      const serializedContent = typeof messageContent === 'string' ? messageContent : JSON.stringify(messageContent);
+      await saveMessage(generateId(), sessionId, 'user', serializedContent, hasAttachments);
     } catch (err) {
       console.warn('Failed to save message:', err);
     }
@@ -270,6 +326,11 @@ export const PeekSurface: React.FC = () => {
           body: query.slice(0, 100),
         });
       }
+
+      // Run output plugins
+      registry.runOutputPlugins(usePluginsStore.getState().enabledOutputPlugins, full).catch(err => {
+        console.warn('Output plugins failed:', err);
+      });
     };
 
     const onError = (err: Error) => {
@@ -327,11 +388,11 @@ export const PeekSurface: React.FC = () => {
   }, [isStreaming, activeSessionId, messages, addBackgroundTask]);
 
   // ── Clear conversation ──
-  const handleClear = useCallback(() => {
+  const handleClear = useCallback(async () => {
     abortStream();
     clear();
     clearAttachments();
-    setToast({ type: 'success', text: 'Cleared' });
+    setToast({ type: 'success', text: 'New chat' });
     setTimeout(() => setToast(null), 2000);
   }, [abortStream, clear, clearAttachments]);
 
@@ -365,19 +426,24 @@ export const PeekSurface: React.FC = () => {
     onStop: abortStream,
   });
 
-  // ── Ollama status check ──
-  const [ollamaStatus, setOllamaStatus] = React.useState<
+  // Generic Provider status check
+  const [providerStatus, setProviderStatus] = React.useState<
     'checking' | 'connected' | 'disconnected'
   >('checking');
-
   useEffect(() => {
+    let mounted = true;
     const check = async () => {
       const available = await provider.isAvailable();
-      setOllamaStatus(available ? 'connected' : 'disconnected');
+      if (mounted) {
+        setProviderStatus(available ? 'connected' : 'disconnected');
+      }
     };
     check();
-    const interval = setInterval(check, 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(check, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [provider]);
 
   const hasConversation = isStreaming || messages.some((m) => m.role !== 'system');
@@ -391,6 +457,12 @@ export const PeekSurface: React.FC = () => {
   const { isOpen: isHistoryOpen } = useHistoryStore();
   const isMenuOpen = isModelsOpen || isLegendOpen || isHistoryOpen || memoryOverlay.isOpen || hasActiveModalHeight;
   const gridMinHeight = hasActiveModalHeight ? 350 : (isMenuOpen ? 280 : undefined);
+
+  useEffect(() => {
+    if (!setupCompleted) {
+      invoke('show_setup_mode');
+    }
+  }, [setupCompleted]);
 
   return (
     <AnimatePresence>
@@ -449,13 +521,41 @@ export const PeekSurface: React.FC = () => {
               {/* Status bar */}
               <div className="peek-statusbar">
                 <div className="peek-status-left">
-                  {ollamaStatus === 'disconnected' && (
-                    <span className="peek-status-error">
-                      Ollama not detected — is it running?
-                    </span>
-                  )}
-                  {ollamaStatus === 'connected' && activeModel && (
-                    <span className="peek-status-model">{activeModel}</span>
+                  {activeProvider === 'llama' ? (
+                    <>
+                      {serverStatus === 'starting' && (
+                        <span className="peek-status-error" style={{ color: '#ff9800' }}>
+                          Starting llama server…
+                        </span>
+                      )}
+                      {serverStatus === 'error' && (
+                        <span className="peek-status-error">llama server failed to start</span>
+                      )}
+                      {serverStatus === 'running' && activeModel && (
+                        <span className="peek-status-model">
+                          <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#4caf50', marginRight: 5, verticalAlign: 'middle' }} />
+                          {activeModel}
+                        </span>
+                      )}
+                      {serverStatus === 'stopped' && (
+                        <span className="peek-status-error" style={{ color: 'var(--peek-text-muted)' }}>
+                          llama server stopped
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {providerStatus === 'disconnected' && (
+                        <span className="peek-status-error">
+                          {activeProvider === 'ollama' ? 'Ollama not detected — is it running?' :
+                           activeProvider === 'llama' ? 'llama.cpp server disconnected' :
+                           `${provider.name} connection failed — check API key`}
+                        </span>
+                      )}
+                      {providerStatus === 'connected' && activeModel && (
+                        <span className="peek-status-model">{activeModel}</span>
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="peek-status-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

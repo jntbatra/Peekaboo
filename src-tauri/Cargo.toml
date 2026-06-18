@@ -19,12 +19,15 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-single-instance = "2"
+tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-clipboard-manager = "2"
 image = "0.25.10"
 base64 = "0.22.1"
 arboard = "3.6.1"
+rfd = "0.15"
+toml = "0.8"
 
 [profile.release]
 opt-level = 3

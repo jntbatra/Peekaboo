@@ -8,6 +8,7 @@ const MarkdownWrapper = React.lazy(() => import('../lib/MarkdownWrapper'));
 
 interface Exchange {
   user: string;
+  images?: string[];
   assistant: string | null;
   index: number;
 }
@@ -113,8 +114,33 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
     for (let i = 0; i < visible.length; i++) {
       if (visible[i].role === 'user') {
         const hasAssistant = visible[i + 1] && visible[i + 1].role === 'assistant';
+        
+        // Extract images from content
+        const content = visible[i].content;
+        let images: string[] = [];
+        if (typeof content === 'string') {
+          const trimmed = content.trim();
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (Array.isArray(parsed)) {
+                images = parsed
+                  .filter((p: any) => p.type === 'image_url' && p.image_url?.url)
+                  .map((p: any) => p.image_url.url);
+              }
+            } catch {
+              // Ignore
+            }
+          }
+        } else if (Array.isArray(content)) {
+          images = content
+            .filter((p) => p.type === 'image_url' && p.image_url?.url)
+            .map((p) => p.image_url!.url);
+        }
+
         result.push({
           user: getTextContent(visible[i].content),
+          images: images.length > 0 ? images : undefined,
           assistant: hasAssistant ? getTextContent(visible[i + 1].content) : null,
           index: result.length,
         });
@@ -152,6 +178,9 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
     onExchangeChange(currentIndex + 1, total);
   }, [currentIndex, total, onExchangeChange]);
 
+  const [isScrollable, setIsScrollable] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
   // useCallback prevents stale closure in the keyboard effect below
   const goTo = useCallback((idx: number, dir: number) => {
     setCurrentIndex((prev) => {
@@ -181,25 +210,67 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
   const cardRef = useRef<HTMLDivElement>(null);
   const autoScrollEnabled = useRef(true);
 
+  const updateScrollState = useCallback(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const scrollable = el.scrollHeight > el.clientHeight + 10;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 25;
+    setIsScrollable(scrollable);
+    setIsAtBottom(atBottom);
+  }, []);
+
+  const scrollToBottom = () => {
+    const el = cardRef.current ?? document.querySelector<HTMLElement>('.peek-exchange-card');
+    if (!el) return;
+    const start = el.scrollTop;
+    const end = el.scrollHeight - el.clientHeight;
+    const distance = end - start;
+    if (distance <= 0) return;
+    const duration = Math.min(300, Math.max(120, distance * 0.4)); // scale with distance
+    const startTime = performance.now();
+    const easeOut = (t: number) => 1 - Math.pow(1 - t, 3); // cubic ease-out
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      el.scrollTop = start + distance * easeOut(progress);
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        autoScrollEnabled.current = true;
+        updateScrollState();
+      }
+    };
+    requestAnimationFrame(step);
+  };
+
   // Scroll to bottom on card/page change
   useEffect(() => {
     if (cardRef.current) {
-      cardRef.current.scrollTop = cardRef.current.scrollHeight;
-      autoScrollEnabled.current = true;
+      const el = cardRef.current;
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+        autoScrollEnabled.current = true;
+        setTimeout(updateScrollState, 80);
+      });
     }
-  }, [currentIndex]);
+  }, [currentIndex, updateScrollState]);
 
   // Scroll to bottom on stream updates
   useEffect(() => {
     if (isLive && autoScrollEnabled.current && cardRef.current) {
-      cardRef.current.scrollTop = cardRef.current.scrollHeight;
+      const el = cardRef.current;
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
     }
-  }, [streamingContent, isLive]);
+    updateScrollState();
+  }, [streamingContent, isLive, updateScrollState]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-    autoScrollEnabled.current = isAtBottom;
+    const scrollable = el.scrollHeight > el.clientHeight + 10;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 25;
+    setIsScrollable(scrollable);
+    setIsAtBottom(atBottom);
+    autoScrollEnabled.current = atBottom;
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -220,7 +291,7 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
   if (!shown) return null;
 
   return (
-    <div className="peek-exchange-view" onWheel={handleWheel}>
+    <div className="peek-exchange-view" onWheel={handleWheel} style={{ position: 'relative' }}>
       <AnimatePresence mode="popLayout" custom={direction}>
         <motion.div
           key={currentIndex}
@@ -264,6 +335,43 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
                         })}
                       </div>
                     )}
+                    {shown.images && shown.images.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, justifyContent: 'flex-end', width: '100%' }}>
+                        {shown.images.map((img, i) => {
+                          let base64 = img;
+                          let mediaType = 'image/png';
+                          const match = img.match(/^data:(image\/[^;]+);base64,(.+)$/);
+                          if (match) {
+                            mediaType = match[1];
+                            base64 = match[2];
+                          }
+                          return (
+                            <img 
+                              key={i} 
+                              src={img} 
+                              alt={`Attachment ${i + 1}`} 
+                              style={{ 
+                                maxWidth: '140px', 
+                                maxHeight: '100px', 
+                                borderRadius: '6px', 
+                                border: '1px solid var(--peek-border)', 
+                                objectFit: 'cover',
+                                cursor: 'pointer' 
+                              }} 
+                              onClick={() => {
+                                onClickAttachment?.({
+                                  id: `img-${i}-${Date.now()}`,
+                                  type: 'screenshot',
+                                  label: `Image ${i + 1}`,
+                                  content: base64,
+                                  mediaType: mediaType
+                                });
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
                     <span className="peek-exchange-user-bubble">{prompt}</span>
                   </>
                 );
@@ -302,6 +410,95 @@ export const ExchangeView: React.FC<ExchangeViewProps> = ({
             );
           })()}
         </motion.div>
+      </AnimatePresence>
+
+      {/* Floating Bottom Center Indicator / Arrow */}
+      <AnimatePresence>
+        {isScrollable && (isLive ? true : !isAtBottom) && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: total > 1 ? 52 : 20,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 20,
+              pointerEvents: 'auto',
+            }}
+          >
+            <motion.div
+              key="scroll-indicator"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.15 }}
+            >
+              {isLive ? (
+                <div
+                  onClick={scrollToBottom}
+                  style={{
+                    background: 'rgba(30, 30, 30, 0.9)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid var(--peek-border)',
+                    borderRadius: '20px',
+                    padding: '6px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    color: 'var(--peek-text)',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    letterSpacing: '0.02em',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <div style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }}>
+                    <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--peek-text)', display: 'inline-block', animation: 'peek-dot-pulse 1.4s infinite both 0s' }} />
+                    <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--peek-text)', display: 'inline-block', animation: 'peek-dot-pulse 1.4s infinite both 0.2s' }} />
+                    <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--peek-text)', display: 'inline-block', animation: 'peek-dot-pulse 1.4s infinite both 0.4s' }} />
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Scroll to bottom"
+                  onClick={scrollToBottom}
+                  style={{
+                    background: 'rgba(30, 30, 30, 0.9)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid var(--peek-border)',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    color: 'var(--peek-text)',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    transition: 'background 0.15s, border-color 0.15s',
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = 'rgba(60, 60, 60, 0.95)';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = 'rgba(30, 30, 30, 0.9)';
+                    e.currentTarget.style.borderColor = 'var(--peek-border)';
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <polyline points="19 12 12 19 5 12" />
+                  </svg>
+                </button>
+              )}
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Navigation — only visible when there's more than 1 exchange */}

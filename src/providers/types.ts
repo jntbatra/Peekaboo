@@ -11,10 +11,6 @@ export interface ContentPart {
   image_url?: { url: string }; // base64 data URI
 }
 
-export interface StreamChunk {
-  delta: string;
-  done: boolean;
-}
 
 export interface ModelInfo {
   name: string;
@@ -28,5 +24,6 @@ export interface Provider {
   id: string;
   name: string;
   models: () => Promise<ModelInfo[]>;
-  stream: (messages: Message[], model: string, signal?: AbortSignal) => AsyncIterable<StreamChunk>;
+  isAvailable: () => Promise<boolean>;
+  stream: (messages: Message[], model: string, signal?: AbortSignal) => AsyncGenerator<string>;
 }
